@@ -11,7 +11,7 @@
 //#define BMW_I3_BATTERY
 //#define CHADEMO_BATTERY
 //#define IMIEV_CZERO_ION_BATTERY
-//#define KIA_HYUNDAI_64_BATTERY
+#define KIA_HYUNDAI_64_BATTERY
 //#define NISSAN_LEAF_BATTERY
 //#define RENAULT_KANGOO_BATTERY
 //#define RENAULT_ZOE_BATTERY
@@ -27,7 +27,7 @@
 //#define SMA_CAN          //Enable this line to emulate a "BYD Battery-Box H 8.9kWh, 7 mod" over CAN bus
 //#define SMA_TRIPOWER_CAN //Enable this line to emulate a "SMA Home Storage battery" over CAN bus
 //#define SOFAR_CAN        //Enable this line to emulate a "Sofar Energy Storage Inverter High Voltage BMS General Protocol (Extended Frame)" over CAN bus
-//#define SOLAX_CAN        //Enable this line to emulate a "SolaX Triple Power LFP" over CAN bus
+#define SOLAX_CAN        //Enable this line to emulate a "SolaX Triple Power LFP" over CAN bus
 
 /* Other options */
 //#define DEBUG_VIA_USB  //Enable this line to have the USB port output serial diagnostic data while program runs
