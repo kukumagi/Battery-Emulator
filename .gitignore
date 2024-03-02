@@ -7,3 +7,4 @@
 # Ignore .exe (unit tests)
 *.exe
 **/.DS_Store
+*.pio
