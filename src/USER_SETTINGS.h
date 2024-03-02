@@ -11,7 +11,8 @@
 //#define BMW_I3_BATTERY
 //#define CHADEMO_BATTERY
 //#define IMIEV_CZERO_ION_BATTERY
-#define KIA_HYUNDAI_64_BATTERY
+// #define KIA_HYUNDAI_64_BATTERY
+#define KIA_HYUNDAI_E_GMP_BATTERY
 //#define NISSAN_LEAF_BATTERY
 //#define RENAULT_KANGOO_BATTERY
 //#define RENAULT_ZOE_BATTERY
@@ -77,5 +78,8 @@ extern bool charger_HV_enabled;
 extern bool charger_aux12V_enabled;
 
 extern const uint8_t wifi_channel;
+
+
+
 
 #endif

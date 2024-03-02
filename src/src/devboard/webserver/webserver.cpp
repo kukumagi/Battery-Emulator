@@ -435,6 +435,9 @@ String processor(const String& var) {
 #ifdef KIA_HYUNDAI_64_BATTERY
     content += "Kia/Hyundai 64kWh";
 #endif
+#ifdef KIA_HYUNDAI_E_GMP_BATTERY
+    content += "Kia/Hyundai E-GMP";
+#endif
 #ifdef NISSAN_LEAF_BATTERY
     content += "Nissan LEAF";
 #endif

@@ -22,6 +22,23 @@
 #include "src/devboard/webserver/webserver.h"
 #endif
 
+#ifdef KIA_HYUNDAI_E_GMP_BATTERY
+#include "./src/lib/perremolinaro-ACAN2517/ACAN2517FD.h"
+#include <SPI.h>
+static const byte MCP2517_SCK  = 26 ; // SCK input of MCP2517FD
+static const byte MCP2517_MOSI = 19 ; // SDI input of MCP2517FD
+static const byte MCP2517_MISO = 18 ; // SDO output of MCP2517FD
+
+static const byte MCP2517_CS  = 16 ; // CS input of MCP2517FD
+static const byte MCP2517_INT = 32 ; // INT output of MCP2517FD
+
+//——————————————————————————————————————————————————————————————————————————————
+//  ACAN2517FD Driver object
+//——————————————————————————————————————————————————————————————————————————————
+
+ACAN2517FD canFD (MCP2517_CS, SPI, MCP2517_INT) ;
+#endif
+
 Preferences settings;                   // Store user settings
 const char* version_number = "5.3.0";  // The current software version, shown on webserver
 // Interval settings
@@ -250,6 +267,46 @@ void init_stored_settings() {
 }
 
 void init_CAN() {
+  #ifdef KIA_HYUNDAI_E_GMP_BATTERY
+  SPI.begin (MCP2517_SCK, MCP2517_MISO, MCP2517_MOSI) ;
+//--- Configure ACAN2517FD
+  Serial.print ("sizeof (ACAN2517FDSettings): ") ;
+  Serial.print (sizeof (ACAN2517FDSettings)) ;
+  Serial.println (" bytes") ;
+  Serial.println ("Configure ACAN2517FD") ;
+//--- For version >= 2.1.0
+  ACAN2517FDSettings settings (ACAN2517FDSettings::OSC_4MHz10xPLL, 125 * 1000, DataBitRateFactor::x1) ;
+//--- For version < 2.1.0
+//  ACAN2517FDSettings settings (ACAN2517FDSettings::OSC_4MHz10xPLL, 125 * 1000, ACAN2517FDSettings::DATA_BITRATE_x1) ;
+  settings.mRequestedMode = ACAN2517FDSettings::InternalLoopBack ; // Select loopback mode
+//--- RAM Usage
+  Serial.print ("MCP2517FD RAM Usage: ") ;
+  Serial.print (settings.ramUsage ()) ;
+  Serial.println (" bytes") ;
+//--- Begin
+  const uint32_t errorCode = canFD.begin (settings, [] { canFD.isr () ; }) ;
+  if (errorCode == 0) {
+    Serial.print ("Bit Rate prescaler: ") ;
+    Serial.println (settings.mBitRatePrescaler) ;
+    Serial.print ("Arbitration Phase segment 1: ") ;
+    Serial.println (settings.mArbitrationPhaseSegment1) ;
+    Serial.print ("Arbitration Phase segment 2: ") ;
+    Serial.println (settings.mArbitrationPhaseSegment2) ;
+    Serial.print ("Arbitration SJW:") ;
+    Serial.println (settings.mArbitrationSJW) ;
+    Serial.print ("Actual Arbitration Bit Rate: ") ;
+    Serial.print (settings.actualArbitrationBitRate ()) ;
+    Serial.println (" bit/s") ;
+    Serial.print ("Exact Arbitration Bit Rate ? ") ;
+    Serial.println (settings.exactArbitrationBitRate () ? "yes" : "no") ;
+    Serial.print ("Arbitration Sample point: ") ;
+    Serial.print (settings.arbitrationSamplePointFromBitStart ()) ;
+    Serial.println ("%") ;
+  }else{
+    Serial.print ("Configuration error 0x") ;
+    Serial.println (errorCode, HEX) ;
+  }
+  #else
   // CAN pins
   pinMode(CAN_SE_PIN, OUTPUT);
   digitalWrite(CAN_SE_PIN, LOW);
@@ -260,6 +317,7 @@ void init_CAN() {
   // Init CAN Module
   ESP32Can.CANInit();
   Serial.println(CAN_cfg.speed);
+  #endif
 
 #ifdef DUAL_CAN
   Serial.println("Dual CAN Bus (ESP32+MCP2515) selected");
@@ -368,9 +426,20 @@ void init_battery() {
 #endif
 }
 
+static void handleCanFDMessages (void) {
+  CANFDMessage frame ;
+  if (canFD.available ()) {
+    canFD.receive(frame);
+    receive_canFD_battery(frame);
+  }
+}
+
 // Functions
 void receive_can() {  // This section checks if we have a complete CAN message incoming
   // Depending on which battery/inverter is selected, we forward this to their respective CAN routines
+  #ifdef KIA_HYUNDAI_E_GMP_BATTERY
+   handleCanFDMessages();
+  #else
   CAN_frame_t rx_frame;
   if (xQueueReceive(CAN_cfg.rx_queue, &rx_frame, 3 * portTICK_PERIOD_MS) == pdTRUE) {
     if (rx_frame.FIR.B.FF == CAN_frame_std) {
@@ -409,6 +478,7 @@ void receive_can() {  // This section checks if we have a complete CAN message i
 #endif
     }
   }
+  #endif
 }
 
 void send_can() {

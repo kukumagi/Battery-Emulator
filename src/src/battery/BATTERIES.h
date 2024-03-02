@@ -2,6 +2,8 @@
 #define BATTERIES_H
 
 #include "../../USER_SETTINGS.h"
+#include <Arduino.h>
+#include "../lib/perremolinaro-ACAN2517/ACAN2517FD.h"
 
 #ifdef BMW_I3_BATTERY
 #include "BMW-I3-BATTERY.h"  //See this file for more i3 battery settings
@@ -17,6 +19,10 @@
 
 #ifdef KIA_HYUNDAI_64_BATTERY
 #include "KIA-HYUNDAI-64-BATTERY.h"  //See this file for more 64kWh battery settings
+#endif
+
+#ifdef KIA_HYUNDAI_E_GMP_BATTERY
+#include "KIA-HYUNDAI-E-GMP-BATTERY.h"  //See this file for more 64kWh battery settings
 #endif
 
 #ifdef NISSAN_LEAF_BATTERY
@@ -50,7 +56,11 @@
 #ifdef SERIAL_LINK_RECEIVER  // The serial thing does its thing
 void receive_can_battery();
 #else
+#ifdef KIA_HYUNDAI_E_GMP_BATTERY
+void receive_canFD_battery(CANFDMessage rx_frame);
+#else
 void receive_can_battery(CAN_frame_t rx_frame);
+#endif
 #endif
 void update_values_battery();
 void send_can_battery();
