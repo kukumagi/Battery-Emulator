@@ -40,7 +40,7 @@ ACAN2517FD canFD (MCP2517_CS, SPI, MCP2517_INT) ;
 #endif
 
 Preferences settings;                   // Store user settings
-const char* version_number = "5.3.0";  // The current software version, shown on webserver
+const char* version_number = "5.4.dev";  // The current software version, shown on webserver
 // Interval settings
 int intervalUpdateValues = 4800;  // Interval at which to update inverter values / Modbus registers
 const int interval10 = 10;        // Interval for 10ms tasks
