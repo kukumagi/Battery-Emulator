@@ -25,12 +25,12 @@
 #ifdef KIA_HYUNDAI_E_GMP_BATTERY
 #include "./src/lib/perremolinaro-ACAN2517/ACAN2517FD.h"
 #include <SPI.h>
-static const byte MCP2517_SCK  = 26 ; // SCK input of MCP2517FD
-static const byte MCP2517_MOSI = 19 ; // SDI input of MCP2517FD
-static const byte MCP2517_MISO = 18 ; // SDO output of MCP2517FD
+static const byte MCP2517_CS  = 5 ; // CS input of MCP2517FD
+static const byte MCP2517_SCK  = 18 ; // SCK input of MCP2517FD
+static const byte MCP2517_MISO = 19 ; // SDO output of MCP2517FD
+static const byte MCP2517_INT = 21 ; // INT output of MCP2517FD
+static const byte MCP2517_MOSI = 23 ; // SDI input of MCP2517FD
 
-static const byte MCP2517_CS  = 16 ; // CS input of MCP2517FD
-static const byte MCP2517_INT = 32 ; // INT output of MCP2517FD
 
 //——————————————————————————————————————————————————————————————————————————————
 //  ACAN2517FD Driver object
@@ -180,7 +180,6 @@ void loop() {
   mqtt_loop();
 #endif
 #endif
-
   // Input
   receive_can();  // Receive CAN messages. Runs as fast as possible
 #ifdef DUAL_CAN
@@ -275,7 +274,7 @@ void init_CAN() {
   Serial.println (" bytes") ;
   Serial.println ("Configure ACAN2517FD") ;
 //--- For version >= 2.1.0
-  ACAN2517FDSettings settings (ACAN2517FDSettings::OSC_4MHz10xPLL, 125 * 1000, DataBitRateFactor::x1) ;
+  ACAN2517FDSettings settings (ACAN2517FDSettings::OSC_40MHz, 500 * 1000, DataBitRateFactor::x1) ;
 //--- For version < 2.1.0
 //  ACAN2517FDSettings settings (ACAN2517FDSettings::OSC_4MHz10xPLL, 125 * 1000, ACAN2517FDSettings::DATA_BITRATE_x1) ;
   settings.mRequestedMode = ACAN2517FDSettings::InternalLoopBack ; // Select loopback mode
@@ -430,6 +429,7 @@ static void handleCanFDMessages (void) {
   CANFDMessage frame ;
   if (canFD.available ()) {
     canFD.receive(frame);
+    Serial.println("Received can frame");
     receive_canFD_battery(frame);
   }
 }

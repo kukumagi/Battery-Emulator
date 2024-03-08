@@ -349,7 +349,7 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
     //   } else if (poll_data_pid == 10) {
     //   }
     //   break;
-    case 0x7EC:  //Data From polled PID group, BigEndian
+    case 0x7EC:
       switch ((rx_frame.data[0] << 8) + rx_frame.data[1]) {
         case 0x101:
           batteryVoltage = ((rx_frame.data[15] << 8) + rx_frame.data[16]) / 10;
@@ -562,9 +562,9 @@ void send_can_battery() {
   if (currentMillis - previousMillis100 >= interval100) {
     previousMillis100 = currentMillis;
 
-    ESP32Can.CANWriteFrame(&KIA64_553);
-    ESP32Can.CANWriteFrame(&KIA64_57F);
-    ESP32Can.CANWriteFrame(&KIA64_2A1);
+    // ESP32Can.CANWriteFrame(&KIA64_553);
+    // ESP32Can.CANWriteFrame(&KIA64_57F);
+    // ESP32Can.CANWriteFrame(&KIA64_2A1);
   }
   // Send 10ms CAN Message
   if (currentMillis - previousMillis10ms >= interval10ms) {
@@ -614,11 +614,11 @@ void send_can_battery() {
         break;
     }
 
-    ESP32Can.CANWriteFrame(&KIA_HYUNDAI_200);
+    // ESP32Can.CANWriteFrame(&KIA_HYUNDAI_200);
 
-    ESP32Can.CANWriteFrame(&KIA_HYUNDAI_523);
+    // ESP32Can.CANWriteFrame(&KIA_HYUNDAI_523);
 
-    ESP32Can.CANWriteFrame(&KIA_HYUNDAI_524);
+    // ESP32Can.CANWriteFrame(&KIA_HYUNDAI_524);
   }
 }
 
