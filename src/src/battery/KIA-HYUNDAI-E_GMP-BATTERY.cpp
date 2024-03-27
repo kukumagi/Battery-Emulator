@@ -332,11 +332,11 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
     //   break;
     case 0x7EC:
       printFrame(rx_frame);
-      switch ((rx_frame.data[0] << 8) + rx_frame.data[1]) {
-        case 0x101:
-          batteryVoltage = ((rx_frame.data[15] << 8) + rx_frame.data[16]) / 10;
-          Serial.print("batteryVoltage ");
-          Serial.println(batteryVoltage);
+      switch (rx_frame.data[0]) {
+        case 0x21:
+          // batteryVoltage = ((rx_frame.data[15] << 8) + rx_frame.data[16]) / 10;
+          // Serial.print("batteryVoltage ");
+          // Serial.println(batteryVoltage);
             //   var soc = data[7]/2; // why not +3 ??
             // var max_regen = (data[8]*256+data[9])/100;
             // var max_power = (data[10]*256+data[11])/100;
@@ -368,11 +368,11 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
             // var rpm_2 = data[58]*(2^8)+data[59]
             // var isolation_resistance = data[60]*(2^8)+data[61]
           break;
-    //     case 0x10:  //"PID Header"
-    //       if (rx_frame.data.u8[4] == poll_data_pid) {
-    //         CAN_FD_WriteFrame(&KIA64_7E4_ack);  //Send ack to BMS if the same frame is sent as polled
-    //       }
-    //       break;
+        case 0x10:  //"PID Header"
+          // if (rx_frame.data.u8[4] == poll_data_pid) {
+            CAN_FD_WriteFrame(&KIA64_7E4_ack);  //Send ack to BMS if the same frame is sent as polled
+          // }
+          break;
     //     case 0x21:  //First frame in PID group
     //       if (poll_data_pid == 1) {
     //         allowedChargePower = ((rx_frame.data.u8[3] << 8) + rx_frame.data.u8[4]);
