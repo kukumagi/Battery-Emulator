@@ -286,7 +286,7 @@ void printFrame(CANFDMessage rx_frame) {
 void set_cell_voltages(CANFDMessage rx_frame, int start, int length, int startCell) {
   for (size_t i = 0; i < length; i++)
   {
-    system_cellvoltages_mV[startCell + i] = (rx_frame.data[start + i] / 50);
+    system_cellvoltages_mV[startCell + i] = (rx_frame.data[start + i] *20);
   }
   
 }
@@ -301,7 +301,7 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
 //   }
   // printFrame(rx_frame);
   switch (rx_frame.id) {
-    // case 0x4DE:
+    case 0xB7:
     //   break;
     // case 0x542:                               //BMS SOC
     //   CANstillAlive = 12;                     //We use this message to verify that BMS is still alive
@@ -356,7 +356,7 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
     //   }
     //   break;
     case 0x7EC:
-      printFrame(rx_frame);
+      // printFrame(rx_frame);
       switch (rx_frame.data[0]) {
         case 0x10:  //"PID Header"
           // Serial.println ("Send ack");
