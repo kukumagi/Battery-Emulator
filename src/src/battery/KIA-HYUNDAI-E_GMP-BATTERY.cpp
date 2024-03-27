@@ -254,7 +254,25 @@ void update_values_battery() {  //This function maps all the values fetched via 
   Serial.println(" Volts");
 #endif
 }
+void CAN_FD_WriteFrame(CAN_frame_t* tx_frame) {
+  CANFDMessage frame;
+  frame.id = tx_frame->MsgID;
+  frame.ext = tx_frame->FIR.B.FF;
+  frame.len = tx_frame->FIR.B.DLC;
+  for (uint8_t i = 0; i < frame.len; i++) {
+    frame.data[i] = tx_frame->data.u8[i];
+  }
+  const bool ok = canFD.tryToSend(frame);
+    // Serial.println ("Send frame");
 
+  // printFrame(frame);
+  if (ok) {
+    // Serial.println ("Send ok") ;
+  }else{
+    Serial.println ("Send failure");
+  }
+
+}
 int i = 0;
 void printFrame(CANFDMessage rx_frame) {
   Serial.print(rx_frame.id,HEX);
@@ -369,6 +387,7 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
             // var isolation_resistance = data[60]*(2^8)+data[61]
           break;
         case 0x10:  //"PID Header"
+          Serial.println ("Send ack");
           // if (rx_frame.data.u8[4] == poll_data_pid) {
             CAN_FD_WriteFrame(&KIA64_7E4_ack);  //Send ack to BMS if the same frame is sent as polled
           // }
@@ -540,25 +559,7 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
   }
 }
 
-void CAN_FD_WriteFrame(CAN_frame_t* tx_frame) {
-  CANFDMessage frame;
-  frame.id = tx_frame->MsgID;
-  frame.ext = tx_frame->FIR.B.FF;
-  frame.len = tx_frame->FIR.B.DLC;
-  for (uint8_t i = 0; i < frame.len; i++) {
-    frame.data[i] = tx_frame->data.u8[i];
-  }
-  const bool ok = canFD.tryToSend(frame);
-    // Serial.println ("Send frame");
 
-  printFrame(frame);
-  if (ok) {
-    // Serial.println ("Send ok") ;
-  }else{
-    Serial.println ("Send failure");
-  }
-
-}
 static uint8_t KIA_7E4_COUNTER = 0x01;
 void send_can_battery() {
   unsigned long currentMillis = millis();
