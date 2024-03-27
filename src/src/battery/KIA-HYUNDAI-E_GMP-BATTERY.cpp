@@ -549,7 +549,8 @@ void CAN_FD_WriteFrame(CAN_frame_t* tx_frame) {
     frame.data[i] = tx_frame->data.u8[i];
   }
   const bool ok = canFD.tryToSend(frame);
-  Serial.println ("Send frame");
+    // Serial.println ("Send frame");
+
   printFrame(frame);
   if (ok) {
     // Serial.println ("Send ok") ;
