@@ -105,7 +105,7 @@ CAN_frame_t EGMP_7E4 = {.FIR =
   },
   .MsgID = 0x7E4,
   .data = {0x03, 0x22, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00}
-};  //Poll PID 03 22 01 01
+};  //Poll PID 03 22 01 01 
 
 
 CAN_frame_t KIA64_7E4_ack = {
