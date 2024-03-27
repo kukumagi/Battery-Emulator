@@ -25,18 +25,27 @@
 #ifdef KIA_HYUNDAI_E_GMP_BATTERY
 #include "./src/lib/perremolinaro-ACAN2517/ACAN2517FD.h"
 #include <SPI.h>
-static const byte MCP2517_CS  = 5 ; // CS input of MCP2517FD
-static const byte MCP2517_SCK  = 18 ; // SCK input of MCP2517FD
-static const byte MCP2517_MISO = 19 ; // SDO output of MCP2517FD
-static const byte MCP2517_INT = 21 ; // INT output of MCP2517FD
-static const byte MCP2517_MOSI = 23 ; // SDI input of MCP2517FD
+
+
+// static const byte MCP2517_CS  = 5 ; // CS input of MCP2517FD
+// static const byte MCP2517_SCK  = 18 ; // SCK input of MCP2517FD
+// static const byte MCP2517_MISO = 19 ; // SDO output of MCP2517FD
+// static const byte MCP2517_INT = 21 ; // INT output of MCP2517FD
+// static const byte MCP2517_MOSI = 23 ; // SDI input of MCP2517FD
+
+static const byte MCP2517_CS  = 18 ; // CS input of MCP2517FD
+static const byte MCP2517_SCK  = 12 ; // SCK input of MCP2517FD
+static const byte MCP2517_MISO = 34 ; // SDO output of MCP2517FD
+static const byte MCP2517_INT = 35 ; // INT output of MCP2517FD
+static const byte MCP2517_MOSI = 5 ; // SDI input of MCPt2517FD
+
 
 
 //——————————————————————————————————————————————————————————————————————————————
 //  ACAN2517FD Driver object
 //——————————————————————————————————————————————————————————————————————————————
-
-ACAN2517FD canFD (MCP2517_CS, SPI, MCP2517_INT) ;
+SPIClass vspi (VSPI) ;
+ACAN2517FD canFD (MCP2517_CS, vspi, MCP2517_INT) ;
 #endif
 
 Preferences settings;                   // Store user settings
@@ -190,14 +199,14 @@ void loop() {
 #endif
 
   // Process
-  if (millis() - previousMillis10ms >= interval10)  // Every 10ms
-  {
-    previousMillis10ms = millis();
-    handle_LED_state();  // Set the LED color according to state
-#ifdef CONTACTOR_CONTROL
-    handle_contactors();  // Take care of startup precharge/contactor closing
-#endif
-  }
+//   if (millis() - previousMillis10ms >= interval10)  // Every 10ms
+//   {
+//     previousMillis10ms = millis();
+//     handle_LED_state();  // Set the LED color according to state
+// #ifdef CONTACTOR_CONTROL
+//     handle_contactors();  // Take care of startup precharge/contactor closing
+// #endif
+//   }
 
   if (millis() - previousMillisUpdateVal >= intervalUpdateValues)  // Every 4.8s
   {
@@ -267,17 +276,17 @@ void init_stored_settings() {
 
 void init_CAN() {
   #ifdef KIA_HYUNDAI_E_GMP_BATTERY
-  SPI.begin (MCP2517_SCK, MCP2517_MISO, MCP2517_MOSI) ;
+  pinMode (MCP2517_INT, INPUT) ;
+
+  vspi.begin (MCP2517_SCK, MCP2517_MISO, MCP2517_MOSI) ;
 //--- Configure ACAN2517FD
   Serial.print ("sizeof (ACAN2517FDSettings): ") ;
   Serial.print (sizeof (ACAN2517FDSettings)) ;
   Serial.println (" bytes") ;
   Serial.println ("Configure ACAN2517FD") ;
-//--- For version >= 2.1.0
-  ACAN2517FDSettings settings (ACAN2517FDSettings::OSC_40MHz, 500 * 1000, DataBitRateFactor::x1) ;
-//--- For version < 2.1.0
-//  ACAN2517FDSettings settings (ACAN2517FDSettings::OSC_4MHz10xPLL, 125 * 1000, ACAN2517FDSettings::DATA_BITRATE_x1) ;
-  settings.mRequestedMode = ACAN2517FDSettings::InternalLoopBack ; // Select loopback mode
+  ACAN2517FDSettings settings (ACAN2517FDSettings::OSC_40MHz, 500UL * 1000UL, DataBitRateFactor::x4) ;
+  settings.mRequestedMode = ACAN2517FDSettings::NormalFD; 
+
 //--- RAM Usage
   Serial.print ("MCP2517FD RAM Usage: ") ;
   Serial.print (settings.ramUsage ()) ;
@@ -427,9 +436,9 @@ void init_battery() {
 
 static void handleCanFDMessages (void) {
   CANFDMessage frame ;
-  if (canFD.available ()) {
+  while (canFD.available ()) {
     canFD.receive(frame);
-    Serial.println("Received can frame");
+    // Serial.println("Received can frame");
     receive_canFD_battery(frame);
   }
 }

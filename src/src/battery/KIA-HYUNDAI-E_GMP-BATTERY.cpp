@@ -96,48 +96,18 @@ CAN_frame_t KIA64_2A1 = {.FIR = {.B =
                          .MsgID = 0x2A1,
                          .data = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}};
 
-CAN_frame_t KIA64_7E4_id1 = {.FIR = {.B =
-                                         {
-                                             .DLC = 8,
-                                             .FF = CAN_frame_std,
-                                         }},
-                             .MsgID = 0x7E4,
-                             .data = {0x03, 0x22, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00}};  //Poll PID 03 22 01 01
-CAN_frame_t KIA64_7E4_id2 = {.FIR = {.B =
-                                         {
-                                             .DLC = 8,
-                                             .FF = CAN_frame_std,
-                                         }},
-                             .MsgID = 0x7E4,
-                             .data = {0x03, 0x22, 0x01, 0x02, 0x00, 0x00, 0x00, 0x00}};  //Poll PID 03 22 01 02
-CAN_frame_t KIA64_7E4_id3 = {.FIR = {.B =
-                                         {
-                                             .DLC = 8,
-                                             .FF = CAN_frame_std,
-                                         }},
-                             .MsgID = 0x7E4,
-                             .data = {0x03, 0x22, 0x01, 0x03, 0x00, 0x00, 0x00, 0x00}};  //Poll PID 03 22 01 03
-CAN_frame_t KIA64_7E4_id4 = {.FIR = {.B =
-                                         {
-                                             .DLC = 8,
-                                             .FF = CAN_frame_std,
-                                         }},
-                             .MsgID = 0x7E4,
-                             .data = {0x03, 0x22, 0x01, 0x04, 0x00, 0x00, 0x00, 0x00}};  //Poll PID 03 22 01 04
-CAN_frame_t KIA64_7E4_id5 = {.FIR = {.B =
-                                         {
-                                             .DLC = 8,
-                                             .FF = CAN_frame_std,
-                                         }},
-                             .MsgID = 0x7E4,
-                             .data = {0x03, 0x22, 0x01, 0x05, 0x00, 0x00, 0x00, 0x00}};  //Poll PID 03 22 01 05
-CAN_frame_t KIA64_7E4_id6 = {.FIR = {.B =
-                                         {
-                                             .DLC = 8,
-                                             .FF = CAN_frame_std,
-                                         }},
-                             .MsgID = 0x7E4,
-                             .data = {0x03, 0x22, 0x01, 0x06, 0x00, 0x00, 0x00, 0x00}};  //Poll PID 03 22 01 06
+CAN_frame_t EGMP_7E4 = {.FIR =
+  {.B =
+    {
+        .DLC = 8,
+        .FF = CAN_frame_std,
+    }
+  },
+  .MsgID = 0x7E4,
+  .data = {0x03, 0x22, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00}
+};  //Poll PID 03 22 01 01
+
+
 CAN_frame_t KIA64_7E4_ack = {
     .FIR = {.B =
                 {
@@ -285,6 +255,16 @@ void update_values_battery() {  //This function maps all the values fetched via 
 #endif
 }
 
+int i = 0;
+void printFrame(CANFDMessage rx_frame) {
+  Serial.print(rx_frame.id,HEX);
+  Serial.print(" ");
+  for(i = 0;i < rx_frame.len; i++) {
+    Serial.print(rx_frame.data[i],HEX);
+    Serial.print(" ");
+  }
+  Serial.println(" ");
+}
 void receive_canFD_battery(CANFDMessage rx_frame) {
     // id (inMessage.id),  // Frame identifier
 //   ext (inMessage.ext), // false -> base frame, true -> extended frame
@@ -294,6 +274,7 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
 //   data () {
 //     data64 [0] = inMessage.data64 ;
 //   }
+  // printFrame(rx_frame);
   switch (rx_frame.id) {
     // case 0x4DE:
     //   break;
@@ -332,17 +313,17 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
     //   }
     //   poll_data_pid++;
     //   if (poll_data_pid == 1) {
-    //     ESP32Can.CANWriteFrame(&KIA64_7E4_id1);
+    //     CAN_FD_WriteFrame(&KIA64_7E4_id1);
     //   } else if (poll_data_pid == 2) {
-    //     ESP32Can.CANWriteFrame(&KIA64_7E4_id2);
+    //     CAN_FD_WriteFrame(&KIA64_7E4_id2);
     //   } else if (poll_data_pid == 3) {
-    //     ESP32Can.CANWriteFrame(&KIA64_7E4_id3);
+    //     CAN_FD_WriteFrame(&KIA64_7E4_id3);
     //   } else if (poll_data_pid == 4) {
-    //     ESP32Can.CANWriteFrame(&KIA64_7E4_id4);
+    //     CAN_FD_WriteFrame(&KIA64_7E4_id4);
     //   } else if (poll_data_pid == 5) {
-    //     ESP32Can.CANWriteFrame(&KIA64_7E4_id5);
+    //     CAN_FD_WriteFrame(&KIA64_7E4_id5);
     //   } else if (poll_data_pid == 6) {
-    //     ESP32Can.CANWriteFrame(&KIA64_7E4_id6);
+    //     CAN_FD_WriteFrame(&KIA64_7E4_id6);
     //   } else if (poll_data_pid == 7) {
     //   } else if (poll_data_pid == 8) {
     //   } else if (poll_data_pid == 9) {
@@ -350,9 +331,12 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
     //   }
     //   break;
     case 0x7EC:
+      printFrame(rx_frame);
       switch ((rx_frame.data[0] << 8) + rx_frame.data[1]) {
         case 0x101:
           batteryVoltage = ((rx_frame.data[15] << 8) + rx_frame.data[16]) / 10;
+          Serial.print("batteryVoltage ");
+          Serial.println(batteryVoltage);
             //   var soc = data[7]/2; // why not +3 ??
             // var max_regen = (data[8]*256+data[9])/100;
             // var max_power = (data[10]*256+data[11])/100;
@@ -386,7 +370,7 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
           break;
     //     case 0x10:  //"PID Header"
     //       if (rx_frame.data.u8[4] == poll_data_pid) {
-    //         ESP32Can.CANWriteFrame(&KIA64_7E4_ack);  //Send ack to BMS if the same frame is sent as polled
+    //         CAN_FD_WriteFrame(&KIA64_7E4_ack);  //Send ack to BMS if the same frame is sent as polled
     //       }
     //       break;
     //     case 0x21:  //First frame in PID group
@@ -556,70 +540,99 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
   }
 }
 
+void CAN_FD_WriteFrame(CAN_frame_t* tx_frame) {
+  CANFDMessage frame;
+  frame.id = tx_frame->MsgID;
+  frame.ext = tx_frame->FIR.B.FF;
+  frame.len = tx_frame->FIR.B.DLC;
+  for (uint8_t i = 0; i < frame.len; i++) {
+    frame.data[i] = tx_frame->data.u8[i];
+  }
+  const bool ok = canFD.tryToSend(frame);
+  Serial.println ("Send frame");
+  printFrame(frame);
+  if (ok) {
+    // Serial.println ("Send ok") ;
+  }else{
+    Serial.println ("Send failure");
+  }
+
+}
+static uint8_t KIA_7E4_COUNTER = 0x01;
 void send_can_battery() {
   unsigned long currentMillis = millis();
   //Send 100ms message
-  if (currentMillis - previousMillis100 >= interval100) {
+  if (currentMillis - previousMillis100 >= 500) {
     previousMillis100 = currentMillis;
+  // Serial.println("send_can_battery");
 
-    // ESP32Can.CANWriteFrame(&KIA64_553);
-    // ESP32Can.CANWriteFrame(&KIA64_57F);
-    // ESP32Can.CANWriteFrame(&KIA64_2A1);
+    // CAN_FD_WriteFrame(&KIA64_553);
+    // CAN_FD_WriteFrame(&KIA64_57F);
+    // CAN_FD_WriteFrame(&KIA64_2A1);
+
+      EGMP_7E4.data.u8[3] = KIA_7E4_COUNTER;
+      CAN_FD_WriteFrame(&EGMP_7E4);
+
+      KIA_7E4_COUNTER++;
+      if (KIA_7E4_COUNTER > 0x0D) { // gets up to 0x010C before repeating
+          KIA_7E4_COUNTER = 0x01;
+      }
   }
   // Send 10ms CAN Message
-  if (currentMillis - previousMillis10ms >= interval10ms) {
-    previousMillis10ms = currentMillis;
+  // if (currentMillis - previousMillis10ms >= interval10ms) {
+  //   previousMillis10ms = currentMillis;
+    
 
-    switch (counter_200) {
-      case 0:
-        KIA_HYUNDAI_200.data.u8[5] = 0x17;
-        ++counter_200;
-        break;
-      case 1:
-        KIA_HYUNDAI_200.data.u8[5] = 0x57;
-        ++counter_200;
-        break;
-      case 2:
-        KIA_HYUNDAI_200.data.u8[5] = 0x97;
-        ++counter_200;
-        break;
-      case 3:
-        KIA_HYUNDAI_200.data.u8[5] = 0xD7;
-        if (startedUp) {
-          ++counter_200;
-        } else {
-          counter_200 = 0;
-        }
-        break;
-      case 4:
-        KIA_HYUNDAI_200.data.u8[3] = 0x10;
-        KIA_HYUNDAI_200.data.u8[5] = 0xFF;
-        ++counter_200;
-        break;
-      case 5:
-        KIA_HYUNDAI_200.data.u8[5] = 0x3B;
-        ++counter_200;
-        break;
-      case 6:
-        KIA_HYUNDAI_200.data.u8[5] = 0x7B;
-        ++counter_200;
-        break;
-      case 7:
-        KIA_HYUNDAI_200.data.u8[5] = 0xBB;
-        ++counter_200;
-        break;
-      case 8:
-        KIA_HYUNDAI_200.data.u8[5] = 0xFB;
-        counter_200 = 5;
-        break;
-    }
+    // switch (counter_200) {
+    //   case 0:
+    //     KIA_HYUNDAI_200.data.u8[5] = 0x17;
+    //     ++counter_200;
+    //     break;
+    //   case 1:
+    //     KIA_HYUNDAI_200.data.u8[5] = 0x57;
+    //     ++counter_200;
+    //     break;
+    //   case 2:
+    //     KIA_HYUNDAI_200.data.u8[5] = 0x97;
+    //     ++counter_200;
+    //     break;
+    //   case 3:
+    //     KIA_HYUNDAI_200.data.u8[5] = 0xD7;
+    //     if (startedUp) {
+    //       ++counter_200;
+    //     } else {
+    //       counter_200 = 0;
+    //     }
+    //     break;
+    //   case 4:
+    //     KIA_HYUNDAI_200.data.u8[3] = 0x10;
+    //     KIA_HYUNDAI_200.data.u8[5] = 0xFF;
+    //     ++counter_200;
+    //     break;
+    //   case 5:
+    //     KIA_HYUNDAI_200.data.u8[5] = 0x3B;
+    //     ++counter_200;
+    //     break;
+    //   case 6:
+    //     KIA_HYUNDAI_200.data.u8[5] = 0x7B;
+    //     ++counter_200;
+    //     break;
+    //   case 7:
+    //     KIA_HYUNDAI_200.data.u8[5] = 0xBB;
+    //     ++counter_200;
+    //     break;
+    //   case 8:
+    //     KIA_HYUNDAI_200.data.u8[5] = 0xFB;
+    //     counter_200 = 5;
+    //     break;
+    // }
 
-    // ESP32Can.CANWriteFrame(&KIA_HYUNDAI_200);
+    // CAN_FD_WriteFrame(&KIA_HYUNDAI_200);
 
-    // ESP32Can.CANWriteFrame(&KIA_HYUNDAI_523);
+    // CAN_FD_WriteFrame(&KIA_HYUNDAI_523);
 
-    // ESP32Can.CANWriteFrame(&KIA_HYUNDAI_524);
-  }
+    // CAN_FD_WriteFrame(&KIA_HYUNDAI_524);
+  // }
 }
 
 void setup_battery(void) {  // Performs one time setup at startup

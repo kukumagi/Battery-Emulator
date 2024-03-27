@@ -327,13 +327,13 @@ void send_can_sofar() {
   if (currentMillis - previousMillis100 >= interval100) {
     previousMillis100 = currentMillis;
     //Frames actively reported by BMS
-    ESP32Can.CANWriteFrame(&SOFAR_351);
-    ESP32Can.CANWriteFrame(&SOFAR_355);
-    ESP32Can.CANWriteFrame(&SOFAR_356);
-    ESP32Can.CANWriteFrame(&SOFAR_30F);
-    ESP32Can.CANWriteFrame(&SOFAR_359);
-    ESP32Can.CANWriteFrame(&SOFAR_35E);
-    ESP32Can.CANWriteFrame(&SOFAR_35F);
-    ESP32Can.CANWriteFrame(&SOFAR_35A);
+    // ESP32Can.CANWriteFrame(&SOFAR_351);
+    // ESP32Can.CANWriteFrame(&SOFAR_355);
+    // ESP32Can.CANWriteFrame(&SOFAR_356);
+    // ESP32Can.CANWriteFrame(&SOFAR_30F);
+    // ESP32Can.CANWriteFrame(&SOFAR_359);
+    // ESP32Can.CANWriteFrame(&SOFAR_35E);
+    // ESP32Can.CANWriteFrame(&SOFAR_35F);
+    // ESP32Can.CANWriteFrame(&SOFAR_35A);
   }
 }

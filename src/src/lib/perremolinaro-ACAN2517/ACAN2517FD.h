@@ -13,6 +13,7 @@
 #include "ACANFDBuffer.h"
 #include "CANMessage.h"
 #include "ACAN2517FDFilters.h"
+#include <Arduino.h>
 #include <SPI.h>
 
 //----------------------------------------------------------------------------------------------------------------------
