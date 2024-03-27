@@ -359,7 +359,7 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
       printFrame(rx_frame);
       switch (rx_frame.data[0]) {
         case 0x10:  //"PID Header"
-          Serial.println ("Send ack");
+          // Serial.println ("Send ack");
           poll_data_pid = rx_frame.data[4];
           // if (rx_frame.data[4] == poll_data_pid) {
             CAN_FD_WriteFrame(&KIA64_7E4_ack);  //Send ack to BMS if the same frame is sent as polled
