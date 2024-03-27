@@ -273,8 +273,8 @@ void CAN_FD_WriteFrame(CAN_frame_t* tx_frame) {
   }
 
 }
-int i = 0;
 void printFrame(CANFDMessage rx_frame) {
+  int i = 0;
   Serial.print(rx_frame.id,HEX);
   Serial.print(" ");
   for(i = 0;i < rx_frame.len; i++) {
@@ -282,6 +282,13 @@ void printFrame(CANFDMessage rx_frame) {
     Serial.print(" ");
   }
   Serial.println(" ");
+}
+void set_cell_voltages(CANFDMessage rx_frame, int start, int length, int startCell) {
+  for (size_t i = 0; i < length; i++)
+  {
+    system_cellvoltages_mV[startCell + i] = (rx_frame.data[start + i] / 50);
+  }
+  
 }
 void receive_canFD_battery(CANFDMessage rx_frame) {
     // id (inMessage.id),  // Frame identifier
@@ -298,29 +305,29 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
     //   break;
     // case 0x542:                               //BMS SOC
     //   CANstillAlive = 12;                     //We use this message to verify that BMS is still alive
-    //   SOC_Display = rx_frame.data.u8[0] * 5;  //100% = 200 ( 200 * 5 = 1000 )
+    //   SOC_Display = rx_frame.data[0] * 5;  //100% = 200 ( 200 * 5 = 1000 )
     //   break;
     // case 0x594:
-    //   SOC_BMS = rx_frame.data.u8[5] * 5;  //100% = 200 ( 200 * 5 = 1000 )
+    //   SOC_BMS = rx_frame.data[5] * 5;  //100% = 200 ( 200 * 5 = 1000 )
     //   break;
     // case 0x595:
-    //   batteryVoltage = (rx_frame.data.u8[7] << 8) + rx_frame.data.u8[6];
-    //   batteryAmps = (rx_frame.data.u8[5] << 8) + rx_frame.data.u8[4];
+    //   batteryVoltage = (rx_frame.data[7] << 8) + rx_frame.data[6];
+    //   batteryAmps = (rx_frame.data[5] << 8) + rx_frame.data[4];
     //   if (counter_200 > 3) {
     //     KIA_HYUNDAI_524.data.u8[0] = (uint8_t)(batteryVoltage / 10);
     //     KIA_HYUNDAI_524.data.u8[1] = (uint8_t)((batteryVoltage / 10) >> 8);
     //   }  //VCU measured voltage sent back to bms
     //   break;
     // case 0x596:
-    //   leadAcidBatteryVoltage = rx_frame.data.u8[1];  //12v Battery Volts
-    //   temperatureMin = rx_frame.data.u8[6];          //Lowest temp in battery
-    //   temperatureMax = rx_frame.data.u8[7];          //Highest temp in battery
+    //   leadAcidBatteryVoltage = rx_frame.data[1];  //12v Battery Volts
+    //   temperatureMin = rx_frame.data[6];          //Lowest temp in battery
+    //   temperatureMax = rx_frame.data[7];          //Highest temp in battery
     //   break;
     // case 0x598:
     //   break;
     // case 0x5D5:
-    //   waterleakageSensor = rx_frame.data.u8[3];  //Water sensor inside pack, value 164 is no water --> 0 is short
-    //   powerRelayTemperature = rx_frame.data.u8[7];
+    //   waterleakageSensor = rx_frame.data[3];  //Water sensor inside pack, value 164 is no water --> 0 is short
+    //   powerRelayTemperature = rx_frame.data[7];
     //   break;
     // case 0x5D8:
     //   startedUp = 1;
@@ -351,207 +358,121 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
     case 0x7EC:
       printFrame(rx_frame);
       switch (rx_frame.data[0]) {
-        case 0x21:
-          // batteryVoltage = ((rx_frame.data[15] << 8) + rx_frame.data[16]) / 10;
-          // Serial.print("batteryVoltage ");
-          // Serial.println(batteryVoltage);
-            //   var soc = data[7]/2; // why not +3 ??
-            // var max_regen = (data[8]*256+data[9])/100;
-            // var max_power = (data[10]*256+data[11])/100;
-            // var contactor_11 = data[12];    // ??
-            // var battery_current = int16((data[13]*256+data[14]))/10;
-            // var battery_voltage = (data[15]*256+data[16])/10;
-            // var battery_max_temp = data[17];
-            // var battery_min_temp = data[18];
-            // var battery_temp1 = data[19];
-            // var battery_temp2 = data[20];
-            // var battery_temp3 = data[21];
-            // var battery_temp4 = data[22];
-            // var battery_inlet_temp = data[25];  // ?? shows 260.6F (127c) with 41F ambient
-            // var max_cell_voltage = data[26]/50;
-            // var max_cell_voltage_nr = data[27];
-            // var min_cell_voltage = data[28]/50;
-            // var min_cell_voltage_nr = data[29];
-            // var battery_fan_mod = data[30]
-            // var battery_fan_speed = data[31]
-            // var lv_battery_voltage = data[32]/10;
-            // var cumulative_charge_current = (data[33]*(2^24)+data[34]*(2^16)+data[35]*(2^8)+data[36])/10;
-            // var cumulative_discharge_current = (data[37]*(2^24)+data[38]*(2^16)+data[39]*(2^8)+data[40])/10;
-            // var cumulative_energy_charged = (data[41]*(2^24)+data[42]*(2^16)+data[43]*(2^8)+data[44])/10;
-            // var cumulative_energy_discharged = (data[45]*(2^24)+data[46]*(2^16)+data[47]*(2^8)+data[48])/10;
-            // var op_time = data[49]*(2^24)+data[50]*(2^16)+data[51]*(2^8)+data[52];
-            // var ignition = data[53];
-            // var inv_cap_voltage = data[54]*(2^8)+data[55] // ??
-            // var rpm_1 = data[56]*(2^8)+data[57];
-            // var rpm_2 = data[58]*(2^8)+data[59]
-            // var isolation_resistance = data[60]*(2^8)+data[61]
-          break;
         case 0x10:  //"PID Header"
           Serial.println ("Send ack");
-          // if (rx_frame.data.u8[4] == poll_data_pid) {
+          poll_data_pid = rx_frame.data[4];
+          // if (rx_frame.data[4] == poll_data_pid) {
             CAN_FD_WriteFrame(&KIA64_7E4_ack);  //Send ack to BMS if the same frame is sent as polled
           // }
           break;
-    //     case 0x21:  //First frame in PID group
-    //       if (poll_data_pid == 1) {
-    //         allowedChargePower = ((rx_frame.data.u8[3] << 8) + rx_frame.data.u8[4]);
-    //         allowedDischargePower = ((rx_frame.data.u8[5] << 8) + rx_frame.data.u8[6]);
-    //         batteryRelay = rx_frame.data.u8[7];
-    //       } else if (poll_data_pid == 2) {
-    //         system_cellvoltages_mV[0] = (rx_frame.data.u8[2] * 20);
-    //         system_cellvoltages_mV[1] = (rx_frame.data.u8[3] * 20);
-    //         system_cellvoltages_mV[2] = (rx_frame.data.u8[4] * 20);
-    //         system_cellvoltages_mV[3] = (rx_frame.data.u8[5] * 20);
-    //         system_cellvoltages_mV[4] = (rx_frame.data.u8[6] * 20);
-    //         system_cellvoltages_mV[5] = (rx_frame.data.u8[7] * 20);
-    //       } else if (poll_data_pid == 3) {
-    //         system_cellvoltages_mV[32] = (rx_frame.data.u8[2] * 20);
-    //         system_cellvoltages_mV[33] = (rx_frame.data.u8[3] * 20);
-    //         system_cellvoltages_mV[34] = (rx_frame.data.u8[4] * 20);
-    //         system_cellvoltages_mV[35] = (rx_frame.data.u8[5] * 20);
-    //         system_cellvoltages_mV[36] = (rx_frame.data.u8[6] * 20);
-    //         system_cellvoltages_mV[37] = (rx_frame.data.u8[7] * 20);
-    //       } else if (poll_data_pid == 4) {
-    //         system_cellvoltages_mV[64] = (rx_frame.data.u8[2] * 20);
-    //         system_cellvoltages_mV[65] = (rx_frame.data.u8[3] * 20);
-    //         system_cellvoltages_mV[66] = (rx_frame.data.u8[4] * 20);
-    //         system_cellvoltages_mV[67] = (rx_frame.data.u8[5] * 20);
-    //         system_cellvoltages_mV[68] = (rx_frame.data.u8[6] * 20);
-    //         system_cellvoltages_mV[69] = (rx_frame.data.u8[7] * 20);
-    //       }
-    //       break;
-    //     case 0x22:  //Second datarow in PID group
-    //       if (poll_data_pid == 2) {
-    //         system_cellvoltages_mV[6] = (rx_frame.data.u8[1] * 20);
-    //         system_cellvoltages_mV[7] = (rx_frame.data.u8[2] * 20);
-    //         system_cellvoltages_mV[8] = (rx_frame.data.u8[3] * 20);
-    //         system_cellvoltages_mV[9] = (rx_frame.data.u8[4] * 20);
-    //         system_cellvoltages_mV[10] = (rx_frame.data.u8[5] * 20);
-    //         system_cellvoltages_mV[11] = (rx_frame.data.u8[6] * 20);
-    //         system_cellvoltages_mV[12] = (rx_frame.data.u8[7] * 20);
-    //       } else if (poll_data_pid == 3) {
-    //         system_cellvoltages_mV[38] = (rx_frame.data.u8[1] * 20);
-    //         system_cellvoltages_mV[39] = (rx_frame.data.u8[2] * 20);
-    //         system_cellvoltages_mV[40] = (rx_frame.data.u8[3] * 20);
-    //         system_cellvoltages_mV[41] = (rx_frame.data.u8[4] * 20);
-    //         system_cellvoltages_mV[42] = (rx_frame.data.u8[5] * 20);
-    //         system_cellvoltages_mV[43] = (rx_frame.data.u8[6] * 20);
-    //         system_cellvoltages_mV[44] = (rx_frame.data.u8[7] * 20);
-    //       } else if (poll_data_pid == 4) {
-    //         system_cellvoltages_mV[70] = (rx_frame.data.u8[1] * 20);
-    //         system_cellvoltages_mV[71] = (rx_frame.data.u8[2] * 20);
-    //         system_cellvoltages_mV[72] = (rx_frame.data.u8[3] * 20);
-    //         system_cellvoltages_mV[73] = (rx_frame.data.u8[4] * 20);
-    //         system_cellvoltages_mV[74] = (rx_frame.data.u8[5] * 20);
-    //         system_cellvoltages_mV[75] = (rx_frame.data.u8[6] * 20);
-    //         system_cellvoltages_mV[76] = (rx_frame.data.u8[7] * 20);
-    //       } else if (poll_data_pid == 6) {
-    //         batteryManagementMode = rx_frame.data.u8[5];
-    //       }
-    //       break;
-    //     case 0x23:  //Third datarow in PID group
-    //       if (poll_data_pid == 1) {
-    //         temperature_water_inlet = rx_frame.data.u8[6];
-    //         CellVoltMax_mV = (rx_frame.data.u8[7] * 20);  //(volts *50) *20 =mV
-    //       } else if (poll_data_pid == 2) {
-    //         system_cellvoltages_mV[13] = (rx_frame.data.u8[1] * 20);
-    //         system_cellvoltages_mV[14] = (rx_frame.data.u8[2] * 20);
-    //         system_cellvoltages_mV[15] = (rx_frame.data.u8[3] * 20);
-    //         system_cellvoltages_mV[16] = (rx_frame.data.u8[4] * 20);
-    //         system_cellvoltages_mV[17] = (rx_frame.data.u8[5] * 20);
-    //         system_cellvoltages_mV[18] = (rx_frame.data.u8[6] * 20);
-    //         system_cellvoltages_mV[19] = (rx_frame.data.u8[7] * 20);
-    //       } else if (poll_data_pid == 3) {
-    //         system_cellvoltages_mV[45] = (rx_frame.data.u8[1] * 20);
-    //         system_cellvoltages_mV[46] = (rx_frame.data.u8[2] * 20);
-    //         system_cellvoltages_mV[47] = (rx_frame.data.u8[3] * 20);
-    //         system_cellvoltages_mV[48] = (rx_frame.data.u8[4] * 20);
-    //         system_cellvoltages_mV[49] = (rx_frame.data.u8[5] * 20);
-    //         system_cellvoltages_mV[50] = (rx_frame.data.u8[6] * 20);
-    //         system_cellvoltages_mV[51] = (rx_frame.data.u8[7] * 20);
-    //       } else if (poll_data_pid == 4) {
-    //         system_cellvoltages_mV[77] = (rx_frame.data.u8[1] * 20);
-    //         system_cellvoltages_mV[78] = (rx_frame.data.u8[2] * 20);
-    //         system_cellvoltages_mV[79] = (rx_frame.data.u8[3] * 20);
-    //         system_cellvoltages_mV[80] = (rx_frame.data.u8[4] * 20);
-    //         system_cellvoltages_mV[81] = (rx_frame.data.u8[5] * 20);
-    //         system_cellvoltages_mV[82] = (rx_frame.data.u8[6] * 20);
-    //         system_cellvoltages_mV[83] = (rx_frame.data.u8[7] * 20);
-    //       } else if (poll_data_pid == 5) {
-    //         heatertemp = rx_frame.data.u8[7];
-    //       }
-    //       break;
-    //     case 0x24:  //Fourth datarow in PID group
-    //       if (poll_data_pid == 1) {
-    //         CellVmaxNo = rx_frame.data.u8[1];
-    //         CellVminNo = rx_frame.data.u8[3];
-    //         CellVoltMin_mV = (rx_frame.data.u8[2] * 20);  //(volts *50) *20 =mV
-    //       } else if (poll_data_pid == 2) {
-    //         system_cellvoltages_mV[20] = (rx_frame.data.u8[1] * 20);
-    //         system_cellvoltages_mV[21] = (rx_frame.data.u8[2] * 20);
-    //         system_cellvoltages_mV[22] = (rx_frame.data.u8[3] * 20);
-    //         system_cellvoltages_mV[23] = (rx_frame.data.u8[4] * 20);
-    //         system_cellvoltages_mV[24] = (rx_frame.data.u8[5] * 20);
-    //         system_cellvoltages_mV[25] = (rx_frame.data.u8[6] * 20);
-    //         system_cellvoltages_mV[26] = (rx_frame.data.u8[7] * 20);
-    //       } else if (poll_data_pid == 3) {
-    //         system_cellvoltages_mV[52] = (rx_frame.data.u8[1] * 20);
-    //         system_cellvoltages_mV[53] = (rx_frame.data.u8[2] * 20);
-    //         system_cellvoltages_mV[54] = (rx_frame.data.u8[3] * 20);
-    //         system_cellvoltages_mV[55] = (rx_frame.data.u8[4] * 20);
-    //         system_cellvoltages_mV[56] = (rx_frame.data.u8[5] * 20);
-    //         system_cellvoltages_mV[57] = (rx_frame.data.u8[6] * 20);
-    //         system_cellvoltages_mV[58] = (rx_frame.data.u8[7] * 20);
-    //       } else if (poll_data_pid == 4) {
-    //         system_cellvoltages_mV[84] = (rx_frame.data.u8[1] * 20);
-    //         system_cellvoltages_mV[85] = (rx_frame.data.u8[2] * 20);
-    //         system_cellvoltages_mV[86] = (rx_frame.data.u8[3] * 20);
-    //         system_cellvoltages_mV[87] = (rx_frame.data.u8[4] * 20);
-    //         system_cellvoltages_mV[88] = (rx_frame.data.u8[5] * 20);
-    //         system_cellvoltages_mV[89] = (rx_frame.data.u8[6] * 20);
-    //         system_cellvoltages_mV[90] = (rx_frame.data.u8[7] * 20);
-    //       } else if (poll_data_pid == 5) {
-    //         batterySOH = ((rx_frame.data.u8[2] << 8) + rx_frame.data.u8[3]);
-    //       }
-    //       break;
-    //     case 0x25:  //Fifth datarow in PID group
-    //       if (poll_data_pid == 2) {
-    //         system_cellvoltages_mV[27] = (rx_frame.data.u8[1] * 20);
-    //         system_cellvoltages_mV[28] = (rx_frame.data.u8[2] * 20);
-    //         system_cellvoltages_mV[29] = (rx_frame.data.u8[3] * 20);
-    //         system_cellvoltages_mV[30] = (rx_frame.data.u8[4] * 20);
-    //         system_cellvoltages_mV[31] = (rx_frame.data.u8[5] * 20);
-    //       } else if (poll_data_pid == 3) {
-    //         system_cellvoltages_mV[59] = (rx_frame.data.u8[1] * 20);
-    //         system_cellvoltages_mV[60] = (rx_frame.data.u8[2] * 20);
-    //         system_cellvoltages_mV[61] = (rx_frame.data.u8[3] * 20);
-    //         system_cellvoltages_mV[62] = (rx_frame.data.u8[4] * 20);
-    //         system_cellvoltages_mV[63] = (rx_frame.data.u8[5] * 20);
-    //       } else if (poll_data_pid == 4) {
-    //         system_cellvoltages_mV[91] = (rx_frame.data.u8[1] * 20);
-    //         system_cellvoltages_mV[92] = (rx_frame.data.u8[2] * 20);
-    //         system_cellvoltages_mV[93] = (rx_frame.data.u8[3] * 20);
-    //         system_cellvoltages_mV[94] = (rx_frame.data.u8[4] * 20);
-    //         system_cellvoltages_mV[95] = (rx_frame.data.u8[5] * 20);
-    //       } else if (poll_data_pid == 5) {
-    //         system_cellvoltages_mV[96] = (rx_frame.data.u8[4] * 20);
-    //         system_cellvoltages_mV[97] = (rx_frame.data.u8[5] * 20);
-    //         system_number_of_cells = 98;
-    //       }
-    //       break;
-    //     case 0x26:  //Sixth datarow in PID group
-    //       break;
-    //     case 0x27:  //Seventh datarow in PID group
-    //       if (poll_data_pid == 1) {
-    //         BMS_ign = rx_frame.data.u8[6];
-    //         inverterVoltageFrameHigh = rx_frame.data.u8[7];
-    //       }
-    //       break;
-    //     case 0x28:  //Eighth datarow in PID group
-    //       if (poll_data_pid == 1) {
-    //         inverterVoltage = (inverterVoltageFrameHigh << 8) + rx_frame.data.u8[1];
-    //       }
-    //       break;
+        case 0x21:  //First frame in PID group
+          if (poll_data_pid == 1) {
+            allowedChargePower = ((rx_frame.data[3] << 8) + rx_frame.data[4]);
+            allowedDischargePower = ((rx_frame.data[5] << 8) + rx_frame.data[6]);
+            batteryRelay = rx_frame.data[7];
+          } else if (poll_data_pid == 2) {
+            // set cell voltages data, start bite, data length from start, start cell
+            set_cell_voltages(rx_frame, 2, 6, 0);
+          } else if (poll_data_pid == 3) {
+            set_cell_voltages(rx_frame, 2, 6, 32);
+          } else if (poll_data_pid == 4) {
+            set_cell_voltages(rx_frame, 2, 6, 64);
+          } else if (poll_data_pid == 0x0A) {
+            set_cell_voltages(rx_frame, 2, 6, 96);
+          } else if (poll_data_pid == 0x0B) {
+            set_cell_voltages(rx_frame, 2, 6, 128);
+          } else if (poll_data_pid == 0x0C) {
+            set_cell_voltages(rx_frame, 2, 6, 160);
+          }
+          break;
+        case 0x22:  //Second datarow in PID group
+          if (poll_data_pid == 2) {
+            set_cell_voltages(rx_frame, 1, 7, 6);
+          } else if (poll_data_pid == 3) {
+            set_cell_voltages(rx_frame, 1, 7, 38);
+          } else if (poll_data_pid == 4) {
+            set_cell_voltages(rx_frame, 1, 7, 70);
+          } else if (poll_data_pid == 0x0A) {
+            set_cell_voltages(rx_frame, 1, 7, 102);
+          } else if (poll_data_pid == 0x0B) {
+            set_cell_voltages(rx_frame, 1, 7, 134);
+          } else if (poll_data_pid == 0x0C) {
+            set_cell_voltages(rx_frame, 1, 7, 166);
+          } else if (poll_data_pid == 6) {
+            batteryManagementMode = rx_frame.data[5];
+          }
+          break;
+        case 0x23:  //Third datarow in PID group
+          if (poll_data_pid == 1) {
+            temperature_water_inlet = rx_frame.data[6];
+            CellVoltMax_mV = (rx_frame.data[7] * 20);  //(volts *50) *20 =mV
+          } else if (poll_data_pid == 2) {
+            set_cell_voltages(rx_frame, 1, 7, 13);
+          } else if (poll_data_pid == 3) {
+            set_cell_voltages(rx_frame, 1, 7, 45);
+          } else if (poll_data_pid == 4) {
+            set_cell_voltages(rx_frame, 1, 7, 77);
+          } else if (poll_data_pid == 0x0A) {
+            set_cell_voltages(rx_frame, 1, 7, 109);
+          } else if (poll_data_pid == 0x0B) {
+            set_cell_voltages(rx_frame, 1, 7, 141);
+          } else if (poll_data_pid == 0x0C) {
+            set_cell_voltages(rx_frame, 1, 7, 173);
+          } else if (poll_data_pid == 5) {
+            heatertemp = rx_frame.data[7];
+          }
+          break;
+        case 0x24:  //Fourth datarow in PID group
+          if (poll_data_pid == 1) {
+            CellVmaxNo = rx_frame.data[1];
+            CellVminNo = rx_frame.data[3];
+            CellVoltMin_mV = (rx_frame.data[2] * 20);  //(volts *50) *20 =mV
+          } else if (poll_data_pid == 2) {
+            set_cell_voltages(rx_frame, 1, 7, 20);
+          } else if (poll_data_pid == 3) {
+            set_cell_voltages(rx_frame, 1, 7, 52);
+          } else if (poll_data_pid == 4) {
+            set_cell_voltages(rx_frame, 1, 7, 84);
+          } else if (poll_data_pid == 0x0A) {
+            set_cell_voltages(rx_frame, 1, 7, 116);
+          } else if (poll_data_pid == 0x0B) {
+            set_cell_voltages(rx_frame, 1, 7, 148);
+          } else if (poll_data_pid == 0x0C) {
+            set_cell_voltages(rx_frame, 1, 7, 180);
+          } else if (poll_data_pid == 5) {
+            batterySOH = ((rx_frame.data[2] << 8) + rx_frame.data[3]);
+          }
+          break;
+        case 0x25:  //Fifth datarow in PID group
+          if (poll_data_pid == 2) {
+            set_cell_voltages(rx_frame, 1, 5, 27);
+          } else if (poll_data_pid == 3) {
+            set_cell_voltages(rx_frame, 1, 5, 59);
+          } else if (poll_data_pid == 4) {
+            set_cell_voltages(rx_frame, 1, 5, 91);
+          } else if (poll_data_pid == 0x0A) {
+            set_cell_voltages(rx_frame, 1, 5, 123);
+          } else if (poll_data_pid == 0x0B) {
+            set_cell_voltages(rx_frame, 1, 5, 155);
+          } else if (poll_data_pid == 0x0C) {
+            set_cell_voltages(rx_frame, 1, 5, 187);
+          } else if (poll_data_pid == 5) {
+            system_number_of_cells = 98;
+          }
+          break;
+        case 0x26:  //Sixth datarow in PID group
+          break;
+        case 0x27:  //Seventh datarow in PID group
+          if (poll_data_pid == 1) {
+            BMS_ign = rx_frame.data[6];
+            inverterVoltageFrameHigh = rx_frame.data[7];
+          }
+          break;
+        case 0x28:  //Eighth datarow in PID group
+          if (poll_data_pid == 1) {
+            inverterVoltage = (inverterVoltageFrameHigh << 8) + rx_frame.data[1];
+          }
+          break;
       }
       break;
     default:
