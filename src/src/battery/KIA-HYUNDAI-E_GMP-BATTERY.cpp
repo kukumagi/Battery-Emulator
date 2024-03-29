@@ -289,7 +289,7 @@ void printFrame(CANFDMessage rx_frame) {
 void set_cell_count() {
   int cellCount = 0;
   for (int cellVoltage : system_cellvoltages_mV) { // for each element in the array
-    if(cellVoltage > 500){
+    if(cellVoltage > 1000){
       cellCount++;
     }
   }
