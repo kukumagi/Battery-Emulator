@@ -406,8 +406,8 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
           if (poll_data_pid == 1) {
             batteryVoltage = (rx_frame.data[3] << 8) + rx_frame.data[4];
             batteryAmps = (rx_frame.data[1] << 8) + rx_frame.data[2];
-            // tempMax = rx_frame.data[5];
-            // tempMin = rx_frame.data[6];
+            temperatureMax = rx_frame.data[5];
+            temperatureMin = rx_frame.data[6];
             // temp1 = rx_frame.data[7];
           } else if (poll_data_pid == 3) {
             set_cell_voltages(rx_frame, 1, 7, 38);
