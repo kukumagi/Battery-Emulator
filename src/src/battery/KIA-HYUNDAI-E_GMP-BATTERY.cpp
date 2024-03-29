@@ -13,6 +13,8 @@ static const int interval100 = 100;           // interval (ms) at which send CAN
 static const int interval10ms = 10;           // interval (ms) at which send CAN Messages
 static uint8_t CANstillAlive = 12;            //counter for checking if CAN is still alive
 
+#define MAX_SYSTEM_CELL_VOLTAGE 4116
+#define MIN_SYSTEM_CELL_VOLTAGE 2950   
 #define MAX_CELL_VOLTAGE 4250   //Battery is put into emergency stop if one cell goes over this value
 #define MIN_CELL_VOLTAGE 2950   //Battery is put into emergency stop if one cell goes below this value
 #define MAX_CELL_DEVIATION 150  //LED turns yellow on the board if mv delta exceeds this value
@@ -283,6 +285,20 @@ void printFrame(CANFDMessage rx_frame) {
   }
   Serial.println(" ");
 }
+
+void set_cell_count() {
+  int cellCount = 0;
+  for (int cellVoltage : system_cellvoltages_mV) { // for each element in the array
+    if(cellVoltage > 500){
+      cellCount++;
+    }
+  }
+  system_number_of_cells = cellCount;
+
+  system_max_design_voltage_dV = system_number_of_cells * MAX_SYSTEM_CELL_VOLTAGE / 100;  // if over this, charging is not possible (goes into forced discharge)
+  system_min_design_voltage_dV = system_number_of_cells * MIN_SYSTEM_CELL_VOLTAGE / 100;  // if under this, discharging further is disabled
+}
+
 void set_cell_voltages(CANFDMessage rx_frame, int start, int length, int startCell) {
   for (size_t i = 0; i < length; i++)
   {
@@ -369,7 +385,8 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
           if (poll_data_pid == 1) {
             allowedChargePower = ((rx_frame.data[3] << 8) + rx_frame.data[4]);
             allowedDischargePower = ((rx_frame.data[5] << 8) + rx_frame.data[6]);
-            batteryRelay = rx_frame.data[7];
+            SOC_BMS = rx_frame.data[2] * 5;  //100% = 200 ( 200 * 5 = 1000 )
+            
           } else if (poll_data_pid == 2) {
             // set cell voltages data, start bite, data length from start, start cell
             set_cell_voltages(rx_frame, 2, 6, 0);
@@ -386,8 +403,12 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
           }
           break;
         case 0x22:  //Second datarow in PID group
-          if (poll_data_pid == 2) {
-            set_cell_voltages(rx_frame, 1, 7, 6);
+          if (poll_data_pid == 1) {
+            batteryVoltage = (rx_frame.data[3] << 8) + rx_frame.data[4];
+            batteryAmps = (rx_frame.data[1] << 8) + rx_frame.data[2];
+            // tempMax = rx_frame.data[5];
+            // tempMin = rx_frame.data[6];
+            // temp1 = rx_frame.data[7];
           } else if (poll_data_pid == 3) {
             set_cell_voltages(rx_frame, 1, 7, 38);
           } else if (poll_data_pid == 4) {
@@ -406,6 +427,9 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
           if (poll_data_pid == 1) {
             temperature_water_inlet = rx_frame.data[6];
             CellVoltMax_mV = (rx_frame.data[7] * 20);  //(volts *50) *20 =mV
+            // temp2 = rx_frame.data[1];
+            // temp3 = rx_frame.data[2];
+            // temp4 = rx_frame.data[3];
           } else if (poll_data_pid == 2) {
             set_cell_voltages(rx_frame, 1, 7, 13);
           } else if (poll_data_pid == 3) {
@@ -419,14 +443,22 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
           } else if (poll_data_pid == 0x0C) {
             set_cell_voltages(rx_frame, 1, 7, 173);
           } else if (poll_data_pid == 5) {
+            // ac = rx_frame.data[3];
+            // Vdiff = rx_frame.data[4];
+
+            // airbag = rx_frame.data[6];
             heatertemp = rx_frame.data[7];
           }
           break;
         case 0x24:  //Fourth datarow in PID group
           if (poll_data_pid == 1) {
             CellVmaxNo = rx_frame.data[1];
-            CellVminNo = rx_frame.data[3];
             CellVoltMin_mV = (rx_frame.data[2] * 20);  //(volts *50) *20 =mV
+            CellVminNo = rx_frame.data[3];
+            // fanMod = rx_frame.data[4];
+            // fanSpeed = rx_frame.data[5];
+            leadAcidBatteryVoltage = rx_frame.data[6];  //12v Battery Volts
+            // cccByte1 = rx_frame.data[7];
           } else if (poll_data_pid == 2) {
             set_cell_voltages(rx_frame, 1, 7, 20);
           } else if (poll_data_pid == 3) {
@@ -441,10 +473,21 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
             set_cell_voltages(rx_frame, 1, 7, 180);
           } else if (poll_data_pid == 5) {
             batterySOH = ((rx_frame.data[2] << 8) + rx_frame.data[3]);
+            // maxDetCell = rx_frame.data[4];
+            // minDet = (rx_frame.data[5] << 8) + rx_frame.data[6];
+            // minDetCell = rx_frame.data[7];
           }
           break;
         case 0x25:  //Fifth datarow in PID group
-          if (poll_data_pid == 2) {
+          if (poll_data_pid == 1) {
+            // cccByte2 = rx_frame.data[1];
+            // cccByte3 = rx_frame.data[2];
+            // cccByte4 = rx_frame.data[3];
+            // cdcByte1 = rx_frame.data[4];
+            // cdcByte2 = rx_frame.data[5];
+            // cdcByte3 = rx_frame.data[6];
+            // cdcByte4 = rx_frame.data[7];
+          } else if (poll_data_pid == 2) {
             set_cell_voltages(rx_frame, 1, 5, 27);
           } else if (poll_data_pid == 3) {
             set_cell_voltages(rx_frame, 1, 5, 59);
@@ -456,21 +499,38 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
             set_cell_voltages(rx_frame, 1, 5, 155);
           } else if (poll_data_pid == 0x0C) {
             set_cell_voltages(rx_frame, 1, 5, 187);
+            set_cell_count();
           } else if (poll_data_pid == 5) {
-            system_number_of_cells = 98;
+            // system_number_of_cells = 98;
+            SOC_Display = rx_frame.data[1] * 5;
           }
           break;
         case 0x26:  //Sixth datarow in PID group
+          if (poll_data_pid == 1) {
+            // cecByte1 = rx_frame.data[1];
+            // cecByte2 = rx_frame.data[2];
+            // cecByte3 = rx_frame.data[3];
+            // cecByte4 = rx_frame.data[4];
+            // cedByte1 = rx_frame.data[5];
+            // cedByte2 = rx_frame.data[6];
+            // cedByte3 = rx_frame.data[7];
+          }
           break;
         case 0x27:  //Seventh datarow in PID group
           if (poll_data_pid == 1) {
+            // cedByte4 = rx_frame.data[1];
+            // opTimeSecondsByte1 = rx_frame.data[2];
+            // opTimeSecondsByte2 = rx_frame.data[3];
+            // opTimeSecondsByte3 = rx_frame.data[4];
+            // opTimeSecondsByte4 = rx_frame.data[5];
+
             BMS_ign = rx_frame.data[6];
-            inverterVoltageFrameHigh = rx_frame.data[7];
+            inverterVoltageFrameHigh = rx_frame.data[7]; // BMS Capacitoir
           }
           break;
         case 0x28:  //Eighth datarow in PID group
           if (poll_data_pid == 1) {
-            inverterVoltage = (inverterVoltageFrameHigh << 8) + rx_frame.data[1];
+            inverterVoltage = (inverterVoltageFrameHigh << 8) + rx_frame.data[1]; // BMS Capacitoir
           }
           break;
       }
@@ -561,8 +621,9 @@ void send_can_battery() {
 void setup_battery(void) {  // Performs one time setup at startup
   Serial.println("Kia / Hyundai E-GMP battery selected");
 
-  system_max_design_voltage_dV = 7915;  // 791.0V, over this, charging is not possible (goes into forced discharge)
-  system_min_design_voltage_dV = 6074;  // 607.0V under this, discharging further is disabled
+  // Cant set these here since we have unknown number of cells
+  // system_max_design_voltage_dV = 7915;  // 791.0V, over this, charging is not possible (goes into forced discharge)
+  // system_min_design_voltage_dV = 6074;  // 607.0V under this, discharging further is disabled
 }
 
 #endif

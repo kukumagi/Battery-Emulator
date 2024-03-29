@@ -6,7 +6,7 @@
 /* Battery settings */
 volatile bool USE_SCALED_SOC =
     true;  //Increases battery life. If true will rescale SOC between the configured min/max-percentage
-volatile uint32_t BATTERY_WH_MAX = 30000;  //Battery size in Wh
+volatile uint32_t BATTERY_WH_MAX = 70000;  //Battery size in Wh
 volatile uint16_t MAXPERCENTAGE =
     800;  //80.0% , Max percentage the battery will charge to (Inverter gets 100% when reached)
 volatile uint16_t MINPERCENTAGE =
