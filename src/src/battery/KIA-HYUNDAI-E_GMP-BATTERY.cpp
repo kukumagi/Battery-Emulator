@@ -19,6 +19,11 @@ static uint8_t CANstillAlive = 12;            //counter for checking if CAN is s
 #define MIN_CELL_VOLTAGE 2950   //Battery is put into emergency stop if one cell goes below this value
 #define MAX_CELL_DEVIATION 150  //LED turns yellow on the board if mv delta exceeds this value
 
+static byte ccc[4];
+static byte cdc[4];
+static byte cec[4];
+static byte ced[4];
+static byte opTimeBytes[4];
 static uint16_t soc_calculated = 0;
 static uint16_t SOC_BMS = 0;
 static uint16_t SOC_Display = 0;
@@ -306,6 +311,23 @@ void set_cell_voltages(CANFDMessage rx_frame, int start, int length, int startCe
   }
   
 }
+
+uint32_t byte4ArrayToInt(byte byteArray[4]) {
+  return (static_cast<uint32_t>(byteArray[0]) << 24)
+     | (static_cast<uint32_t>(byteArray[1]) << 16)
+     | (static_cast<uint32_t>(byteArray[2]) << 8)
+     | (static_cast<uint32_t>(byteArray[3]));
+  
+}
+
+void set_ccc() {
+  BATTERY_WH_USABLE = byte4ArrayToInt(ccc);
+}
+
+void set_cdc() {
+  // BATTERY_WH_MAX = byte4ArrayToInt(cdc); // dont save in this variable since it will be stored in eeprom
+}
+
 void receive_canFD_battery(CANFDMessage rx_frame) {
     // id (inMessage.id),  // Frame identifier
 //   ext (inMessage.ext), // false -> base frame, true -> extended frame
@@ -458,7 +480,7 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
             // fanMod = rx_frame.data[4];
             // fanSpeed = rx_frame.data[5];
             leadAcidBatteryVoltage = rx_frame.data[6];  //12v Battery Volts
-            // cccByte1 = rx_frame.data[7];
+            ccc[0] = rx_frame.data[7];
           } else if (poll_data_pid == 2) {
             set_cell_voltages(rx_frame, 1, 7, 20);
           } else if (poll_data_pid == 3) {
@@ -480,13 +502,15 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
           break;
         case 0x25:  //Fifth datarow in PID group
           if (poll_data_pid == 1) {
-            // cccByte2 = rx_frame.data[1];
-            // cccByte3 = rx_frame.data[2];
-            // cccByte4 = rx_frame.data[3];
-            // cdcByte1 = rx_frame.data[4];
-            // cdcByte2 = rx_frame.data[5];
-            // cdcByte3 = rx_frame.data[6];
-            // cdcByte4 = rx_frame.data[7];
+            ccc[1] = rx_frame.data[1];
+            ccc[2] = rx_frame.data[2];
+            ccc[3] = rx_frame.data[3];
+            cdc[0] = rx_frame.data[4];
+            cdc[1] = rx_frame.data[5];
+            cdc[2] = rx_frame.data[6];
+            cdc[3] = rx_frame.data[7];
+            set_ccc();
+            set_cdc();
           } else if (poll_data_pid == 2) {
             set_cell_voltages(rx_frame, 1, 5, 27);
           } else if (poll_data_pid == 3) {
@@ -507,25 +531,30 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
           break;
         case 0x26:  //Sixth datarow in PID group
           if (poll_data_pid == 1) {
-            // cecByte1 = rx_frame.data[1];
-            // cecByte2 = rx_frame.data[2];
-            // cecByte3 = rx_frame.data[3];
-            // cecByte4 = rx_frame.data[4];
-            // cedByte1 = rx_frame.data[5];
-            // cedByte2 = rx_frame.data[6];
-            // cedByte3 = rx_frame.data[7];
+            cec[0] = rx_frame.data[1];
+            cec[1] = rx_frame.data[2];
+            cec[2] = rx_frame.data[3];
+            cec[3] = rx_frame.data[4];
+            ced[0] = rx_frame.data[5];
+            ced[1] = rx_frame.data[6];
+            ced[2] = rx_frame.data[7];
+            // set_cec();
           }
           break;
         case 0x27:  //Seventh datarow in PID group
           if (poll_data_pid == 1) {
-            // cedByte4 = rx_frame.data[1];
-            // opTimeSecondsByte1 = rx_frame.data[2];
-            // opTimeSecondsByte2 = rx_frame.data[3];
-            // opTimeSecondsByte3 = rx_frame.data[4];
-            // opTimeSecondsByte4 = rx_frame.data[5];
+            ced[3] = rx_frame.data[1];
+            
+            opTimeBytes[0] = rx_frame.data[2];
+            opTimeBytes[1] = rx_frame.data[3];
+            opTimeBytes[2] = rx_frame.data[4];
+            opTimeBytes[3] = rx_frame.data[5];
 
             BMS_ign = rx_frame.data[6];
             inverterVoltageFrameHigh = rx_frame.data[7]; // BMS Capacitoir
+
+            // set_ced();
+            // set_opTime();
           }
           break;
         case 0x28:  //Eighth datarow in PID group
