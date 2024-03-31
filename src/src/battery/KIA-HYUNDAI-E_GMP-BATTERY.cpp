@@ -19,10 +19,10 @@ static uint8_t CANstillAlive = 12;            //counter for checking if CAN is s
 #define MIN_CELL_VOLTAGE 2950   //Battery is put into emergency stop if one cell goes below this value
 #define MAX_CELL_DEVIATION 150  //LED turns yellow on the board if mv delta exceeds this value
 
-static byte ccc[4];
-static byte cdc[4];
-static byte cec[4];
-static byte ced[4];
+static byte ccc[4]; // cumulative_charge_current
+static byte cdc[4]; // cumulative_discharge_current
+static byte cec[4]; // cumulative_energy_charged
+static byte ced[4]; // cumulative_energy_discharged
 static byte opTimeBytes[4];
 static uint16_t soc_calculated = 0;
 static uint16_t SOC_BMS = 0;

@@ -37,9 +37,9 @@ String cellmonitor_processor(const String& var) {
     // Populate cell data
     content += "const data = [";
     for (uint8_t i = 0u; i < MAX_AMOUNT_CELLS; i++) {
-      if (system_cellvoltages_mV[i] == 0) {
-        continue;
-      }
+      // if (system_cellvoltages_mV[i] == 0) {
+      //   continue;
+      // }
       content += String(system_cellvoltages_mV[i]) + ",";
     }
     content += "];";
