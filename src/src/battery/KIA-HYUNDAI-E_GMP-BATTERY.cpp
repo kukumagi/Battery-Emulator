@@ -292,16 +292,16 @@ void printFrame(CANFDMessage rx_frame) {
 }
 
 void set_cell_count() {
-  int cellCount = 0;
-  for (int cellVoltage : system_cellvoltages_mV) { // for each element in the array
-    if(cellVoltage > 1000){
-      cellCount++;
-    }
-  }
-  system_number_of_cells = cellCount;
+  // int cellCount = 0;
+  // for (int cellVoltage : system_cellvoltages_mV) { // for each element in the array
+  //   if(cellVoltage > 1000){
+  //     cellCount++;
+  //   }
+  // }
+  // system_number_of_cells = 192;
 
-  system_max_design_voltage_dV = system_number_of_cells * MAX_SYSTEM_CELL_VOLTAGE / 100;  // if over this, charging is not possible (goes into forced discharge)
-  system_min_design_voltage_dV = system_number_of_cells * MIN_SYSTEM_CELL_VOLTAGE / 100;  // if under this, discharging further is disabled
+  // system_max_design_voltage_dV = system_number_of_cells * MAX_SYSTEM_CELL_VOLTAGE / 100;  // if over this, charging is not possible (goes into forced discharge)
+  // system_min_design_voltage_dV = system_number_of_cells * MIN_SYSTEM_CELL_VOLTAGE / 100;  // if under this, discharging further is disabled
 }
 
 void set_cell_voltages(CANFDMessage rx_frame, int start, int length, int startCell) {
@@ -653,6 +653,12 @@ void setup_battery(void) {  // Performs one time setup at startup
   // Cant set these here since we have unknown number of cells
   // system_max_design_voltage_dV = 7915;  // 791.0V, over this, charging is not possible (goes into forced discharge)
   // system_min_design_voltage_dV = 6074;  // 607.0V under this, discharging further is disabled
+
+  system_number_of_cells = 192;
+
+  system_max_design_voltage_dV = system_number_of_cells * MAX_SYSTEM_CELL_VOLTAGE / 100;  // if over this, charging is not possible (goes into forced discharge)
+  system_min_design_voltage_dV = system_number_of_cells * MIN_SYSTEM_CELL_VOLTAGE / 100;  // if under this, discharging further is disabled
+
 }
 
 #endif
