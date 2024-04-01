@@ -418,6 +418,8 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
             temperatureMax = rx_frame.data[5];
             temperatureMin = rx_frame.data[6];
             // temp1 = rx_frame.data[7];
+          } else if (poll_data_pid == 2) {
+            set_cell_voltages(rx_frame, 1, 7, 6);
           } else if (poll_data_pid == 3) {
             set_cell_voltages(rx_frame, 1, 7, 38);
           } else if (poll_data_pid == 4) {
