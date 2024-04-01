@@ -54,6 +54,15 @@ extern float charger_stat_ACvol;
 extern float charger_stat_LVcur;
 extern float charger_stat_LVvol;
 
+
+extern byte cumulative_charge_current[4];
+extern byte cumulative_discharge_current[4];
+extern byte cumulative_energy_charged[4];
+extern byte cumulative_energy_discharged[4];
+extern byte opTimeBytes[4];
+
+uint32_t byte4ArrayToInt(byte byteArray[4]);
+
 //LEAF charger
 extern uint16_t OBC_Charge_Power;
 

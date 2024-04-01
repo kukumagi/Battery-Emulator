@@ -15,8 +15,6 @@ String settings_processor(const String& var) {
     // Show current settings with edit buttons and input fields
     content += "<h4 style='color: white;'>Battery capacity: <span id='BATTERY_WH_MAX'>" + String(BATTERY_WH_MAX) +
                " Wh </span> <button onclick='editWh()'>Edit</button></h4>";
-    content += "<h4 style='color: white;'>Battery usable capacity: <span id='BATTERY_WH_USABLE'>" + String(BATTERY_WH_USABLE) +
-               " Wh </span> <button onclick='editWh()'>Edit</button></h4>";
     content += "<h4 style='color: white;'>Rescale SOC: <span id='USE_SCALED_SOC'>" + String(USE_SCALED_SOC) +
                "</span> <button onclick='editUseScaledSOC()'>Edit</button></h4>";
     content += "<h4 style='color: white;'>SOC max percentage: " + String(MAXPERCENTAGE / 10.0, 1) +

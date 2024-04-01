@@ -19,11 +19,6 @@ static uint8_t CANstillAlive = 12;            //counter for checking if CAN is s
 #define MIN_CELL_VOLTAGE 2950   //Battery is put into emergency stop if one cell goes below this value
 #define MAX_CELL_DEVIATION 150  //LED turns yellow on the board if mv delta exceeds this value
 
-static byte ccc[4]; // cumulative_charge_current
-static byte cdc[4]; // cumulative_discharge_current
-static byte cec[4]; // cumulative_energy_charged
-static byte ced[4]; // cumulative_energy_discharged
-static byte opTimeBytes[4];
 static uint16_t soc_calculated = 0;
 static uint16_t SOC_BMS = 0;
 static uint16_t SOC_Display = 0;
@@ -312,20 +307,12 @@ void set_cell_voltages(CANFDMessage rx_frame, int start, int length, int startCe
   
 }
 
-uint32_t byte4ArrayToInt(byte byteArray[4]) {
-  return (static_cast<uint32_t>(byteArray[0]) << 24)
-     | (static_cast<uint32_t>(byteArray[1]) << 16)
-     | (static_cast<uint32_t>(byteArray[2]) << 8)
-     | (static_cast<uint32_t>(byteArray[3]));
-  
+void set_cumulative_charge_current() {
+  // BATTERY_WH_USABLE = byte4ArrayToInt(cumulative_charge_current);
 }
 
-void set_ccc() {
-  BATTERY_WH_USABLE = byte4ArrayToInt(ccc);
-}
-
-void set_cdc() {
-  // BATTERY_WH_MAX = byte4ArrayToInt(cdc); // dont save in this variable since it will be stored in eeprom
+void set_cumulative_discharge_current() {
+  // BATTERY_WH_MAX = byte4ArrayToInt(cumulative_discharge_current); // dont save in this variable since it will be stored in eeprom
 }
 
 void receive_canFD_battery(CANFDMessage rx_frame) {
@@ -480,7 +467,7 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
             // fanMod = rx_frame.data[4];
             // fanSpeed = rx_frame.data[5];
             leadAcidBatteryVoltage = rx_frame.data[6];  //12v Battery Volts
-            ccc[0] = rx_frame.data[7];
+            cumulative_charge_current[0] = rx_frame.data[7];
           } else if (poll_data_pid == 2) {
             set_cell_voltages(rx_frame, 1, 7, 20);
           } else if (poll_data_pid == 3) {
@@ -502,15 +489,15 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
           break;
         case 0x25:  //Fifth datarow in PID group
           if (poll_data_pid == 1) {
-            ccc[1] = rx_frame.data[1];
-            ccc[2] = rx_frame.data[2];
-            ccc[3] = rx_frame.data[3];
-            cdc[0] = rx_frame.data[4];
-            cdc[1] = rx_frame.data[5];
-            cdc[2] = rx_frame.data[6];
-            cdc[3] = rx_frame.data[7];
-            set_ccc();
-            set_cdc();
+            cumulative_charge_current[1] = rx_frame.data[1];
+            cumulative_charge_current[2] = rx_frame.data[2];
+            cumulative_charge_current[3] = rx_frame.data[3];
+            cumulative_discharge_current[0] = rx_frame.data[4];
+            cumulative_discharge_current[1] = rx_frame.data[5];
+            cumulative_discharge_current[2] = rx_frame.data[6];
+            cumulative_discharge_current[3] = rx_frame.data[7];
+            set_cumulative_charge_current();
+            set_cumulative_discharge_current();
           } else if (poll_data_pid == 2) {
             set_cell_voltages(rx_frame, 1, 5, 27);
           } else if (poll_data_pid == 3) {
@@ -531,19 +518,19 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
           break;
         case 0x26:  //Sixth datarow in PID group
           if (poll_data_pid == 1) {
-            cec[0] = rx_frame.data[1];
-            cec[1] = rx_frame.data[2];
-            cec[2] = rx_frame.data[3];
-            cec[3] = rx_frame.data[4];
-            ced[0] = rx_frame.data[5];
-            ced[1] = rx_frame.data[6];
-            ced[2] = rx_frame.data[7];
-            // set_cec();
+            cumulative_energy_charged[0] = rx_frame.data[1];
+            cumulative_energy_charged[1] = rx_frame.data[2];
+            cumulative_energy_charged[2] = rx_frame.data[3];
+            cumulative_energy_charged[3] = rx_frame.data[4];
+            cumulative_energy_discharged[0] = rx_frame.data[5];
+            cumulative_energy_discharged[1] = rx_frame.data[6];
+            cumulative_energy_discharged[2] = rx_frame.data[7];
+            // set_cumulative_energy_charged();
           }
           break;
         case 0x27:  //Seventh datarow in PID group
           if (poll_data_pid == 1) {
-            ced[3] = rx_frame.data[1];
+            cumulative_energy_discharged[3] = rx_frame.data[1];
             
             opTimeBytes[0] = rx_frame.data[2];
             opTimeBytes[1] = rx_frame.data[3];
@@ -553,7 +540,7 @@ void receive_canFD_battery(CANFDMessage rx_frame) {
             BMS_ign = rx_frame.data[6];
             inverterVoltageFrameHigh = rx_frame.data[7]; // BMS Capacitoir
 
-            // set_ced();
+            // set_cumulative_energy_discharged();
             // set_opTime();
           }
           break;

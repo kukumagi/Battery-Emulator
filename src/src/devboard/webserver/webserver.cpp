@@ -514,6 +514,11 @@ String processor(const String& var) {
     content += formatPowerValue("Remaining capacity", system_remaining_capacity_Wh, "h", 1);
     content += formatPowerValue("Max discharge power", system_max_discharge_power_W, "", 1);
     content += formatPowerValue("Max charge power", system_max_charge_power_W, "", 1);
+    content += "<h4 style='color: white;'>cumulative_charge_current: " + String(byte4ArrayToInt(cumulative_charge_current)) + " </h4>";
+    content += "<h4 style='color: white;'>cumulative_discharge_current: " + String(byte4ArrayToInt(cumulative_discharge_current)) + " </h4>";
+    content += "<h4 style='color: white;'>cumulative_energy_charged: " + String(byte4ArrayToInt(cumulative_energy_charged)) + " </h4>";
+    content += "<h4 style='color: white;'>cumulative_energy_discharged: " + String(byte4ArrayToInt(cumulative_energy_discharged)) + " </h4>";
+    content += "<h4 style='color: white;'>opTime: " + String(byte4ArrayToInt(opTimeBytes)) + " </h4>";
     content += "<h4>Cell max: " + String(system_cell_max_voltage_mV) + " mV</h4>";
     content += "<h4>Cell min: " + String(system_cell_min_voltage_mV) + " mV</h4>";
     content += "<h4>Temperature max: " + String(tempMaxFloat, 1) + " C</h4>";

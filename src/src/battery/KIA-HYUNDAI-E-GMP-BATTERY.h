@@ -36,6 +36,12 @@ extern uint8_t system_bms_status;                          //Enum 0-5
 extern bool batteryAllowsContactorClosing;                 //Bool, true/false
 extern bool inverterAllowsContactorClosing;                //Bool, 1=true, 0=false
 
+extern byte cumulative_charge_current[4];
+extern byte cumulative_discharge_current[4];
+extern byte cumulative_energy_charged[4];
+extern byte cumulative_energy_discharged[4];
+extern byte opTimeBytes[4];
+
 void setup_battery(void);
 
 #endif

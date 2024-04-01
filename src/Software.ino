@@ -148,6 +148,21 @@ unsigned long timeSpentInFaultedMode = 0;
 bool batteryAllowsContactorClosing = false;
 bool inverterAllowsContactorClosing = true;
 
+
+byte cumulative_charge_current[4]; // cumulative_charge_current
+byte cumulative_discharge_current[4]; // cumulative_discharge_current
+byte cumulative_energy_charged[4]; // cumulative_energy_charged
+byte cumulative_energy_discharged[4]; // cumulative_energy_discharged
+byte opTimeBytes[4];
+
+uint32_t byte4ArrayToInt(byte byteArray[4]) {
+  return (static_cast<uint32_t>(byteArray[0]) << 24)
+     | (static_cast<uint32_t>(byteArray[1]) << 16)
+     | (static_cast<uint32_t>(byteArray[2]) << 8)
+     | (static_cast<uint32_t>(byteArray[3]));
+  
+}
+
 // Initialization
 void setup() {
   init_serial();
