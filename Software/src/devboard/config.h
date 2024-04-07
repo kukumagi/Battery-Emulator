@@ -25,7 +25,7 @@
 #define MCP2517_SDI 5   // SDI input of MCP2517
 #define MCP2517_SDO 34  // SDO output of MCP2517
 #define MCP2517_CS 18   // CS input of MCP2517
-#define MCP2517_INT 255  // INT output of MCP2517
+#define MCP2517_INT 35  // INT output of MCP2517
 #endif
 
 #ifdef CONTACTOR_CONTROL
