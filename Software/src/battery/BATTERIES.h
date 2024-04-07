@@ -22,6 +22,13 @@
 #endif
 #endif
 
+#ifdef KIA_HYUNDAI_E_GMP_BATTERY
+#include "KIA-HYUNDAI-E-GMP-BATTERY.h"  //See this file for more GMP battery settings
+#ifndef CAN_FD
+#error KIA HYUNDAI EGMP BATTERIES CANNOT BE USED WITHOUT CAN FD
+#endif
+#endif
+
 #ifdef KIA_HYUNDAI_64_BATTERY
 #include "KIA-HYUNDAI-64-BATTERY.h"  //See this file for more 64kWh battery settings
 #endif

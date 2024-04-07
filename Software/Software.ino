@@ -48,7 +48,9 @@ static ACAN2515_Buffer16 gBuffer;
 #endif
 #ifdef CAN_FD
 #include "src/lib/pierremolinaro-ACAN2517FD/ACAN2517FD.h"
-ACAN2517FD canfd(MCP2517_CS, SPI, MCP2517_INT);
+#include <SPI.h>
+SPIClass vspi (VSPI) ;
+ACAN2517FD canfd(MCP2517_CS, vspi, MCP2517_INT);
 #endif
 
 // ModbusRTU parameters
@@ -80,6 +82,21 @@ uint16_t system_cellvoltages_mV[MAX_AMOUNT_CELLS];  //Array with all cell voltag
 uint8_t system_bms_status = ACTIVE;  //ACTIVE - [0..5]<>[STANDBY,INACTIVE,DARKSTART,ACTIVE,FAULT,UPDATING]
 uint8_t system_number_of_cells = 0;  //Total number of cell voltages, set by each battery
 bool system_LFP_Chemistry = false;   //Set to true or false depending on cell chemistry
+
+// byte values
+byte cumulative_charge_current[4]; // cumulative_charge_current
+byte cumulative_discharge_current[4]; // cumulative_discharge_current
+byte cumulative_energy_charged[4]; // cumulative_energy_charged
+byte cumulative_energy_discharged[4]; // cumulative_energy_discharged
+byte opTimeBytes[4];
+
+uint32_t byte4ArrayToInt(byte byteArray[4]) {
+  return (static_cast<uint32_t>(byteArray[0]) << 24)
+     | (static_cast<uint32_t>(byteArray[1]) << 16)
+     | (static_cast<uint32_t>(byteArray[2]) << 8)
+     | (static_cast<uint32_t>(byteArray[3]));
+  
+}
 
 // Common charger parameters
 volatile float charger_setpoint_HV_VDC = 0.0f;
@@ -320,7 +337,7 @@ void init_CAN() {
   Serial.println("CAN FD add-on (ESP32+MCP2517) selected");
 #endif
   SPI.begin(MCP2517_SCK, MCP2517_SDO, MCP2517_SDI);
-  ACAN2517FDSettings settings(ACAN2517FDSettings::OSC_40MHz, 500 * 1000,
+  ACAN2517FDSettings settings(ACAN2517FDSettings::OSC_40MHz, 500UL * 1000UL,
                               DataBitRateFactor::x4);      // Arbitration bit rate: 500 kbit/s, data bit rate: 2 Mbit/s
   settings.mRequestedMode = ACAN2517FDSettings::NormalFD;  // ListenOnly / Normal20B / NormalFD
   const uint32_t errorCode = canfd.begin(settings, [] { canfd.isr(); });
@@ -469,7 +486,7 @@ void init_battery() {
 void receive_canfd() {  // This section checks if we have a complete CAN-FD message incoming
 #ifdef CAN_FD
   CANFDMessage frame;
-  if (canfd.available()) {
+  while (canfd.available()) {
     canfd.receive(frame);
     receive_canfd_battery(frame);
   }
@@ -483,7 +500,9 @@ void receive_can() {  // This section checks if we have a complete CAN message i
     if (rx_frame.FIR.B.FF == CAN_frame_std) {  // New standard frame
 // Battery
 #ifndef SERIAL_LINK_RECEIVER
+#ifndef CAN_FD
       receive_can_battery(rx_frame);
+#endif
 #endif
       // Inverter
 #ifdef BYD_CAN
