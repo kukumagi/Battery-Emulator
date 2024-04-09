@@ -424,14 +424,31 @@ void receive_canfd_battery(CANFDMessage rx_frame) {
 //   data () {
 //     data64 [0] = inMessage.data64 ;
 //   }
-  printFrame(rx_frame);
-  // switch (rx_frame.id) {
-  //   case 0x7EC:
-  //     break;
-  //   default:
-  //     printFrame(rx_frame);
-  //     break;
-  // }
+  //printFrame(rx_frame);
+  switch (rx_frame.id) {
+    case 0x7EC:
+    case 0x3BA:
+    case 0x2FA:
+    case 0x150:
+    case 0x235:
+    case 0x25A:
+    case 0x325:
+    case 0x335:
+    case 0x330:
+    case 0x365:
+    case 0x360:
+    case 0x3F5:
+    case 0x215:
+    case 0x275:
+    case 0x245:
+    case 0x1F5:
+    case 0x55:
+    case 0x21A:
+      break;
+    default:
+      printFrame(rx_frame);
+      break;
+  }
   switch (rx_frame.id) {
     // case 0xB7:
     //   break;
@@ -488,7 +505,7 @@ void receive_canfd_battery(CANFDMessage rx_frame) {
     //   }
     //   break;
     case 0x7EC:
-      // printFrame(rx_frame);
+      printFrame(rx_frame);
       switch (rx_frame.data[0]) {
         case 0x10:  //"PID Header"
           // Serial.println ("Send ack");
