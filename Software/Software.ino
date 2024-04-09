@@ -29,7 +29,7 @@
 
 Preferences settings;  // Store user settings
 // The current software version, shown on webserver
-const char* version_number = "5.7.dev";
+const char* version_number = "5.7.0";
 
 // Interval settings
 uint16_t intervalUpdateValues = INTERVAL_5_S;  // Interval at which to update inverter values / Modbus registers
@@ -62,20 +62,20 @@ ModbusServerRTU MBserver(Serial2, 2000);
 #endif
 
 // Common system parameters. Batteries map their values to these variables
-uint32_t system_capacity_Wh = BATTERY_WH_MAX;            //Wh, 0-150000Wh
-uint32_t system_remaining_capacity_Wh = BATTERY_WH_MAX;  //Wh, 0-150000Wh
+uint32_t system_capacity_Wh = BATTERY_WH_MAX;            //Wh, 0-500000 Wh
+uint32_t system_remaining_capacity_Wh = BATTERY_WH_MAX;  //Wh, 0-500000 Wh
 int16_t system_temperature_max_dC = 0;                   //C+1, -50.0 - 50.0
 int16_t system_temperature_min_dC = 0;                   //C+1, -50.0 - 50.0
-int16_t system_active_power_W = 0;                       //Watts, -32000 to 32000
+int32_t system_active_power_W = 0;                       //Watts, -200000 to 200000 W
 int16_t system_battery_current_dA = 0;                   //A+1, -1000 - 1000
-uint16_t system_battery_voltage_dV = 3700;               //V+1,  0-500.0 (0-5000)
-uint16_t system_max_design_voltage_dV = 5000;            //V+1,  0-500.0 (0-5000)
-uint16_t system_min_design_voltage_dV = 2500;            //V+1,  0-500.0 (0-5000)
+uint16_t system_battery_voltage_dV = 3700;               //V+1,  0-1000.0 (0-10000)
+uint16_t system_max_design_voltage_dV = 5000;            //V+1,  0-1000.0 (0-10000)
+uint16_t system_min_design_voltage_dV = 2500;            //V+1,  0-1000.0 (0-10000)
 uint16_t system_scaled_SOC_pptt = 5000;                  //SOC%, 0-100.00 (0-10000)
 uint16_t system_real_SOC_pptt = 5000;                    //SOC%, 0-100.00 (0-10000)
 uint16_t system_SOH_pptt = 9900;                         //SOH%, 0-100.00 (0-10000)
-uint16_t system_max_discharge_power_W = 0;               //Watts, 0 to 65535
-uint16_t system_max_charge_power_W = 4312;               //Watts, 0 to 65535
+uint32_t system_max_discharge_power_W = 0;               //Watts, 0 to 200000
+uint32_t system_max_charge_power_W = 4312;               //Watts, 0 to 200000
 uint16_t system_cell_max_voltage_mV = 3700;              //mV, 0-5000 , Stores the highest cell millivolt value
 uint16_t system_cell_min_voltage_mV = 3700;              //mV, 0-5000, Stores the minimum cell millivolt value
 uint16_t system_cellvoltages_mV[MAX_AMOUNT_CELLS];  //Array with all cell voltages. Oversized to accomodate all setups
@@ -200,9 +200,9 @@ void mainLoop(void* pvParameters) {
 
     // Input
     receive_can();  // Receive CAN messages. Runs as fast as possible
-    if (millis() > BOOTUP_TIME) {
-      receive_canfd();  // Receive CAN-FD messages. Runs as fast as possible
-    }
+#ifdef CAN_FD
+    receive_canfd();  // Receive CAN-FD messages. Runs as fast as possible
+#endif
 #ifdef DUAL_CAN
     receive_can2();  // Receive CAN messages on CAN2. Runs as fast as possible
 #endif
@@ -327,17 +327,12 @@ void init_CAN() {
   can.begin(settings, [] { can.isr(); });
 #endif
 
-#if defined(DUAL_CAN) && defined(CAN_FD)
-// Check that user did not try to use dual can and fd-can on same hardware pins
-#error CAN-FD AND DUAL-CAN CANNOT BE USED SIMULTANEOUSLY
-#endif
-
 #ifdef CAN_FD
 #ifdef DEBUG_VIA_USB
   Serial.println("CAN FD add-on (ESP32+MCP2517) selected");
   Serial.println(MCP2517_SCK);
 #endif
-  SPI.begin(MCP2517_SCK, MCP2517_SDO, MCP2517_SDI);
+  vspi.begin(MCP2517_SCK, MCP2517_SDO, MCP2517_SDI);
   ACAN2517FDSettings settings(ACAN2517FDSettings::OSC_40MHz, 500UL * 1000UL,
                               DataBitRateFactor::x4);      // Arbitration bit rate: 500 kbit/s, data bit rate: 2 Mbit/s
   settings.mRequestedMode = ACAN2517FDSettings::NormalFD;  // ListenOnly / Normal20B / NormalFD
@@ -410,10 +405,6 @@ void init_modbus() {
   // Init Static data to the RTU Modbus
   handle_static_data_modbus_byd();
 #endif
-#if defined(SERIAL_LINK_RECEIVER) || defined(SERIAL_LINK_TRANSMITTER)
-// Check that Dual LilyGo via RS485 option isn't enabled, this collides with Modbus!
-#error MODBUS CANNOT BE USED IN DOUBLE LILYGO SETUPS! CHECK USER SETTINGS!
-#endif
 
   // Init Serial2 connected to the RTU Modbus
   RTUutils::prepareHardwareSerial(Serial2);
@@ -483,16 +474,16 @@ void init_battery() {
 #endif
 }
 
+#ifdef CAN_FD
 // Functions
 void receive_canfd() {  // This section checks if we have a complete CAN-FD message incoming
-#ifdef CAN_FD
   CANFDMessage frame;
   while (canfd.available()) {
     canfd.receive(frame);
     receive_canfd_battery(frame);
   }
-#endif
 }
+#endif
 
 void receive_can() {  // This section checks if we have a complete CAN message incoming
   // Depending on which battery/inverter is selected, we forward this to their respective CAN routines
