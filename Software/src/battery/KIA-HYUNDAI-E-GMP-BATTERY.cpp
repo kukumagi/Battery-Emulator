@@ -518,7 +518,7 @@ void receive_canfd_battery(CANFDMessage rx_frame) {
           if (poll_data_pid == 1) {
             allowedChargePower = ((rx_frame.data[3] << 8) + rx_frame.data[4]);
             allowedDischargePower = ((rx_frame.data[5] << 8) + rx_frame.data[6]);
-            SOC_BMS = rx_frame.data[2] * 5;  //100% = 200 ( 200 * 5 = 1000 )
+            SOC_BMS = 1000 - (rx_frame.data[2] * 5);  //100% = 200 ( 200 * 5 = 1000 )
             
           } else if (poll_data_pid == 2) {
             // set cell voltages data, start bite, data length from start, start cell
@@ -639,7 +639,7 @@ void receive_canfd_battery(CANFDMessage rx_frame) {
             set_cell_count();
           } else if (poll_data_pid == 5) {
             // system_number_of_cells = 98;
-            SOC_Display = rx_frame.data[1] * 5;
+            SOC_Display = 1000 - (rx_frame.data[1] * 5);
           }
           break;
         case 0x26:  //Sixth datarow in PID group
