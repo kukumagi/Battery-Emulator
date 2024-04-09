@@ -703,23 +703,23 @@ void send_can_battery() {
           KIA_7E4_COUNTER = 0x01;
       }
   }
-  // trigger relay
-  if (currentMillis - previousMillis1000 >= 1000) {
-    previousMillis1000 = currentMillis;
-  // Serial.println("send_can_battery");
+  // // trigger relay
+  // if (currentMillis - previousMillis1000 >= 1000) {
+  //   previousMillis1000 = currentMillis;
+  // // Serial.println("send_can_battery");
 
-    CAN_FD_WriteFrame(&EGMP_7A5_tester);
-    CAN_FD_WriteFrame(&EGMP_7A5_session);
-    CAN_FD_WriteFrame(&EGMP_7A5_wait);
-    CAN_FD_WriteFrame(&EGMP_7A5_ACC_ON);
-    // CAN_FD_WriteFrame(&EGMP_7A5_ACC_OFF);
-    CAN_FD_WriteFrame(&EGMP_7A5_IGN1_ON);
-    // CAN_FD_WriteFrame(&EGMP_7A5_IGN1_OFF);
-    CAN_FD_WriteFrame(&EGMP_7A5_START_ON);
-    // CAN_FD_WriteFrame(&EGMP_7A5_START_OFF);
+  //   CAN_FD_WriteFrame(&EGMP_7A5_tester);
+  //   CAN_FD_WriteFrame(&EGMP_7A5_session);
+  //   CAN_FD_WriteFrame(&EGMP_7A5_wait);
+  //   CAN_FD_WriteFrame(&EGMP_7A5_ACC_ON);
+  //   // CAN_FD_WriteFrame(&EGMP_7A5_ACC_OFF);
+  //   CAN_FD_WriteFrame(&EGMP_7A5_IGN1_ON);
+  //   // CAN_FD_WriteFrame(&EGMP_7A5_IGN1_OFF);
+  //   CAN_FD_WriteFrame(&EGMP_7A5_START_ON);
+  //   // CAN_FD_WriteFrame(&EGMP_7A5_START_OFF);
 
 
-  }
+  // }
   // Send 10ms CAN Message
   // if (currentMillis - previousMillis10ms >= interval10ms) {
   //   previousMillis10ms = currentMillis;
