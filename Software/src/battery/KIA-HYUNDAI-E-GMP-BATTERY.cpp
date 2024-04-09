@@ -8,6 +8,7 @@
 
 /* Do not change code below unless you are sure what you are doing */
 static unsigned long previousMillis100 = 0;   // will store last time a 100ms CAN Message was send
+static unsigned long previousMillis1000 = 0;   // will store last time a 1000ms CAN Message was send
 static unsigned long previousMillis10ms = 0;  // will store last time a 10s CAN Message was send
 static const int interval100 = 100;           // interval (ms) at which send CAN Messages
 static const int interval10ms = 10;           // interval (ms) at which send CAN Messages
@@ -108,6 +109,105 @@ CAN_frame_t EGMP_7E4 = {.FIR =
   .MsgID = 0x7E4,
   .data = {0x03, 0x22, 0x01, 0x01, 0x00, 0x00, 0x00, 0x00}
 };  //Poll PID 03 22 01 01 
+
+CAN_frame_t EGMP_7A5_tester = {.FIR =
+  {.B =
+    {
+        .DLC = 2,
+        .FF = CAN_frame_std,
+    }
+  },
+  .MsgID = 0x7A5,
+  .data = {0x01, 0x3E}
+};
+
+CAN_frame_t EGMP_7A5_session = {.FIR =
+  {.B =
+    {
+        .DLC = 3,
+        .FF = CAN_frame_std,
+    }
+  },
+  .MsgID = 0x7A5,
+  .data = {0x02, 0x10, 0x03}
+};
+
+CAN_frame_t EGMP_7A5_wait = {.FIR =
+  {.B =
+    {
+        .DLC = 3,
+        .FF = CAN_frame_std,
+    }
+  },
+  .MsgID = 0x7A5,
+  .data = {0x02, 0x50, 0x03}
+};
+
+CAN_frame_t EGMP_7A5_ACC_ON = {.FIR =
+  {.B =
+    {
+        .DLC = 8,
+        .FF = CAN_frame_std,
+    }
+  },
+  .MsgID = 0x7A5,
+  .data = {0x07, 0x2f, 0xb1, 0x08, 0x03, 0x0a, 0x0a, 0x05}
+};
+
+CAN_frame_t EGMP_7A5_ACC_OFF = {.FIR =
+  {.B =
+    {
+        .DLC = 5,
+        .FF = CAN_frame_std,
+    }
+  },
+  .MsgID = 0x7A5,
+  .data = {0x04, 0x2f, 0xb1, 0x08, 0x00}
+};
+
+CAN_frame_t EGMP_7A5_IGN1_ON = {.FIR =
+  {.B =
+    {
+        .DLC = 8,
+        .FF = CAN_frame_std,
+    }
+  },
+  .MsgID = 0x7A5,
+  .data = {0x07, 0x2f, 0xb1, 0x09, 0x03, 0x0a, 0x0a, 0x05}
+};
+
+CAN_frame_t EGMP_7A5_IGN1_OFF = {.FIR =
+  {.B =
+    {
+        .DLC = 5,
+        .FF = CAN_frame_std,
+    }
+  },
+  .MsgID = 0x7A5,
+  .data = {0x04, 0x2f, 0xb1, 0x09, 0x00}
+};
+
+CAN_frame_t EGMP_7A5_START_ON = {.FIR =
+  {.B =
+    {
+        .DLC = 8,
+        .FF = CAN_frame_std,
+    }
+  },
+  .MsgID = 0x7A5,
+  .data = {0x07, 0x2f, 0xb1, 0x0b, 0x03, 0x02, 0x02, 0x01}
+};
+
+CAN_frame_t EGMP_7A5_START_OFF = {.FIR =
+  {.B =
+    {
+        .DLC = 5,
+        .FF = CAN_frame_std,
+    }
+  },
+  .MsgID = 0x7A5,
+  .data = {0x04, 0x2f, 0xb1, 0x0b, 0x00}
+};
 
 
 CAN_frame_t KIA64_7E4_ack = {
@@ -324,9 +424,16 @@ void receive_canfd_battery(CANFDMessage rx_frame) {
 //   data () {
 //     data64 [0] = inMessage.data64 ;
 //   }
-  // printFrame(rx_frame);
+  printFrame(rx_frame);
+  // switch (rx_frame.id) {
+  //   case 0x7EC:
+  //     break;
+  //   default:
+  //     printFrame(rx_frame);
+  //     break;
+  // }
   switch (rx_frame.id) {
-    case 0xB7:
+    // case 0xB7:
     //   break;
     // case 0x542:                               //BMS SOC
     //   CANstillAlive = 12;                     //We use this message to verify that BMS is still alive
@@ -578,6 +685,23 @@ void send_can_battery() {
       if (KIA_7E4_COUNTER > 0x0D) { // gets up to 0x010C before repeating
           KIA_7E4_COUNTER = 0x01;
       }
+  }
+  // trigger relay
+  if (currentMillis - previousMillis1000 >= 1000) {
+    previousMillis1000 = currentMillis;
+  // Serial.println("send_can_battery");
+
+    CAN_FD_WriteFrame(&EGMP_7A5_tester);
+    CAN_FD_WriteFrame(&EGMP_7A5_session);
+    CAN_FD_WriteFrame(&EGMP_7A5_wait);
+    CAN_FD_WriteFrame(&EGMP_7A5_ACC_ON);
+    // CAN_FD_WriteFrame(&EGMP_7A5_ACC_OFF);
+    CAN_FD_WriteFrame(&EGMP_7A5_IGN1_ON);
+    // CAN_FD_WriteFrame(&EGMP_7A5_IGN1_OFF);
+    CAN_FD_WriteFrame(&EGMP_7A5_START_ON);
+    // CAN_FD_WriteFrame(&EGMP_7A5_START_OFF);
+
+
   }
   // Send 10ms CAN Message
   // if (currentMillis - previousMillis10ms >= interval10ms) {
