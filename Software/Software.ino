@@ -460,7 +460,7 @@ void init_battery() {
 // Functions
 void receive_canfd() {  // This section checks if we have a complete CAN-FD message incoming
   CANFDMessage frame;
-  if (canfd.available()) {
+  while (canfd.available()) {
     canfd.receive(frame);
     receive_canfd_battery(frame);
   }
