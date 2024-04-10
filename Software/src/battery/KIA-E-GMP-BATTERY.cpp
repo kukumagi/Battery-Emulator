@@ -191,7 +191,16 @@ void update_values_battery() {  //This function maps all the values fetched via 
   Serial.println(" Volts");
 #endif
 }
-
+void printFrame(CANFDMessage rx_frame) {
+  int i = 0;
+  Serial.print(rx_frame.id,HEX);
+  Serial.print(" ");
+  for(i = 0;i < rx_frame.len; i++) {
+    Serial.print(rx_frame.data[i],HEX);
+    Serial.print(" ");
+  }
+  Serial.println(" ");
+}
 void receive_canfd_battery(CANFDMessage frame) {
   CANstillAlive = 12;
   switch (frame.id) {
