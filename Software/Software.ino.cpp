@@ -1,5 +1,8 @@
-/* Do not change any code below this line unless you are sure what you are doing */
-/* Only change battery specific settings in "USER_SETTINGS.h" */
+# 1 "C:\\Users\\priit\\AppData\\Local\\Temp\\tmpa9xuhxah"
+#include <Arduino.h>
+# 1 "C:/xampp7.4/htdocs/Battery-Emulator/Software/Software.ino"
+
+
 
 #include <Arduino.h>
 #include <Preferences.h>
@@ -27,22 +30,22 @@
 #include "src/devboard/webserver/webserver.h"
 #endif
 
-Preferences settings;  // Store user settings
-// The current software version, shown on webserver
+Preferences settings;
+
 const char* version_number = "5.7.0";
 
-// Interval settings
-uint16_t intervalUpdateValues = INTERVAL_5_S;  // Interval at which to update inverter values / Modbus registers
+
+uint16_t intervalUpdateValues = INTERVAL_5_S;
 unsigned long previousMillis10ms = 50;
 unsigned long previousMillisUpdateVal = 0;
 
-// CAN parameters
-CAN_device_t CAN_cfg;          // CAN Config
-const int rx_queue_size = 10;  // Receive Queue size
+
+CAN_device_t CAN_cfg;
+const int rx_queue_size = 10;
 
 #ifdef DUAL_CAN
 #include "src/lib/pierremolinaro-acan2515/ACAN2515.h"
-static const uint32_t QUARTZ_FREQUENCY = 8UL * 1000UL * 1000UL;  // 8 MHz
+static const uint32_t QUARTZ_FREQUENCY = 8UL * 1000UL * 1000UL;
 ACAN2515 can(MCP2515_CS, SPI, MCP2515_INT);
 static ACAN2515_Buffer16 gBuffer;
 #endif
@@ -51,44 +54,44 @@ static ACAN2515_Buffer16 gBuffer;
 ACAN2517FD canfd(MCP2517_CS, SPI, MCP2517_INT);
 #endif
 
-// ModbusRTU parameters
+
 #if defined(BYD_MODBUS) || defined(LUNA2000_MODBUS)
 #define MB_RTU_NUM_VALUES 30000
-uint16_t mbPV[MB_RTU_NUM_VALUES];  // Process variable memory
-// Create a ModbusRTU server instance listening on Serial2 with 2000ms timeout
+uint16_t mbPV[MB_RTU_NUM_VALUES];
+
 ModbusServerRTU MBserver(Serial2, 2000);
 #endif
 
-// Common system parameters. Batteries map their values to these variables
-uint32_t system_capacity_Wh = BATTERY_WH_MAX;            //Wh, 0-500000 Wh
-uint32_t system_remaining_capacity_Wh = BATTERY_WH_MAX;  //Wh, 0-500000 Wh
-int16_t system_temperature_max_dC = 0;                   //C+1, -50.0 - 50.0
-int16_t system_temperature_min_dC = 0;                   //C+1, -50.0 - 50.0
-int32_t system_active_power_W = 0;                       //Watts, -200000 to 200000 W
-int16_t system_battery_current_dA = 0;                   //A+1, -1000 - 1000
-uint16_t system_battery_voltage_dV = 3700;               //V+1,  0-1000.0 (0-10000)
-uint16_t system_max_design_voltage_dV = 5000;            //V+1,  0-1000.0 (0-10000)
-uint16_t system_min_design_voltage_dV = 2500;            //V+1,  0-1000.0 (0-10000)
-uint16_t system_scaled_SOC_pptt = 5000;                  //SOC%, 0-100.00 (0-10000)
-uint16_t system_real_SOC_pptt = 5000;                    //SOC%, 0-100.00 (0-10000)
-uint16_t system_SOH_pptt = 9900;                         //SOH%, 0-100.00 (0-10000)
-uint32_t system_max_discharge_power_W = 0;               //Watts, 0 to 200000
-uint32_t system_max_charge_power_W = 4312;               //Watts, 0 to 200000
-uint16_t system_cell_max_voltage_mV = 3700;              //mV, 0-5000 , Stores the highest cell millivolt value
-uint16_t system_cell_min_voltage_mV = 3700;              //mV, 0-5000, Stores the minimum cell millivolt value
-uint16_t system_cellvoltages_mV[MAX_AMOUNT_CELLS];  //Array with all cell voltages. Oversized to accomodate all setups
-uint8_t system_bms_status = ACTIVE;  //ACTIVE - [0..5]<>[STANDBY,INACTIVE,DARKSTART,ACTIVE,FAULT,UPDATING]
-uint8_t system_number_of_cells = 0;  //Total number of cell voltages, set by each battery
-bool system_LFP_Chemistry = false;   //Set to true or false depending on cell chemistry
 
-// Common charger parameters
+uint32_t system_capacity_Wh = BATTERY_WH_MAX;
+uint32_t system_remaining_capacity_Wh = BATTERY_WH_MAX;
+int16_t system_temperature_max_dC = 0;
+int16_t system_temperature_min_dC = 0;
+int32_t system_active_power_W = 0;
+int16_t system_battery_current_dA = 0;
+uint16_t system_battery_voltage_dV = 3700;
+uint16_t system_max_design_voltage_dV = 5000;
+uint16_t system_min_design_voltage_dV = 2500;
+uint16_t system_scaled_SOC_pptt = 5000;
+uint16_t system_real_SOC_pptt = 5000;
+uint16_t system_SOH_pptt = 9900;
+uint32_t system_max_discharge_power_W = 0;
+uint32_t system_max_charge_power_W = 4312;
+uint16_t system_cell_max_voltage_mV = 3700;
+uint16_t system_cell_min_voltage_mV = 3700;
+uint16_t system_cellvoltages_mV[MAX_AMOUNT_CELLS];
+uint8_t system_bms_status = ACTIVE;
+uint8_t system_number_of_cells = 0;
+bool system_LFP_Chemistry = false;
+
+
 volatile float charger_setpoint_HV_VDC = 0.0f;
 volatile float charger_setpoint_HV_IDC = 0.0f;
 volatile float charger_setpoint_HV_IDC_END = 0.0f;
 bool charger_HV_enabled = false;
 bool charger_aux12V_enabled = false;
 
-// Common charger statistics, instantaneous values
+
 float charger_stat_HVcur = 0;
 float charger_stat_HVvol = 0;
 float charger_stat_ACcur = 0;
@@ -96,14 +99,14 @@ float charger_stat_ACvol = 0;
 float charger_stat_LVcur = 0;
 float charger_stat_LVvol = 0;
 
-// LED parameters
+
 Adafruit_NeoPixel pixels(1, WS2812_PIN, NEO_GRB + NEO_KHZ800);
 static uint8_t brightness = 0;
 static bool rampUp = true;
 const uint8_t maxBrightness = 100;
 uint8_t LEDcolor = GREEN;
 
-// Contactor parameters
+
 #ifdef CONTACTOR_CONTROL
 enum State { DISCONNECTED, PRECHARGE, NEGATIVE, POSITIVE, PRECHARGE_OFF, COMPLETED, SHUTDOWN_REQUESTED };
 State contactorStatus = DISCONNECTED;
@@ -113,8 +116,8 @@ State contactorStatus = DISCONNECTED;
 #define NEGATIVE_CONTACTOR_TIME_MS 1000
 #define POSITIVE_CONTACTOR_TIME_MS 2000
 #ifdef PWM_CONTACTOR_CONTROL
-#define PWM_Freq 20000  // 20 kHz frequency, beyond audible range
-#define PWM_Res 10      // 10 Bit resolution 0 to 1023, maps 'nicely' to 0% 100%
+#define PWM_Freq 20000
+#define PWM_Res 10
 #define PWM_Hold_Duty 250
 #define POSITIVE_PWM_Ch 0
 #define NEGATIVE_PWM_Ch 1
@@ -127,8 +130,32 @@ bool batteryAllowsContactorClosing = false;
 bool inverterAllowsContactorClosing = true;
 
 TaskHandle_t mainLoopTask;
-
-// Initialization
+void setup();
+void loop();
+void mainLoop(void* pvParameters);
+void init_mDNS();
+void init_serial();
+void init_stored_settings();
+void init_CAN();
+void init_LED();
+void init_contactors();
+void init_modbus();
+void inform_user_on_inverter();
+void init_battery();
+void printFrameToWebserial(CANFDMessage frame);
+void receive_canfd();
+void receive_can();
+void send_can();
+void receive_can2();
+void send_can2();
+void handle_LED_state();
+void handle_contactors();
+void update_SOC();
+void update_values();
+void runSerialDataLink();
+void init_serialDataLink();
+void storeSettings();
+#line 132 "C:/xampp7.4/htdocs/Battery-Emulator/Software/Software.ino"
 void setup() {
   init_serial();
 
@@ -156,15 +183,15 @@ void setup() {
 
   init_battery();
 
-  // BOOT button at runtime is used as an input for various things
+
   pinMode(0, INPUT_PULLUP);
 
-  esp_task_wdt_deinit();  // Disable watchdog
+  esp_task_wdt_deinit();
 
   xTaskCreatePinnedToCore((TaskFunction_t)&mainLoop, "mainLoop", 4096, NULL, 8, &mainLoopTask, 1);
 }
 
-// Perform main program functions
+
 void loop() {
   ;
 }
@@ -173,7 +200,7 @@ void mainLoop(void* pvParameters) {
   while (true) {
 
 #ifdef WEBSERVER
-    // Over-the-air updates by ElegantOTA
+
     wifi_monitor();
     ElegantOTA.loop();
 #ifdef MQTT
@@ -181,72 +208,72 @@ void mainLoop(void* pvParameters) {
 #endif
 #endif
 
-    // Input
-    receive_can();  // Receive CAN messages. Runs as fast as possible
+
+    receive_can();
 #ifdef CAN_FD
-    receive_canfd();  // Receive CAN-FD messages. Runs as fast as possible
+    receive_canfd();
 #endif
 #ifdef DUAL_CAN
-    receive_can2();  // Receive CAN messages on CAN2. Runs as fast as possible
+    receive_can2();
 #endif
 #if defined(SERIAL_LINK_RECEIVER) || defined(SERIAL_LINK_TRANSMITTER)
     runSerialDataLink();
 #endif
 
-    // Process
+
     if (millis() - previousMillis10ms >= INTERVAL_10_MS) {
       previousMillis10ms = millis();
-      handle_LED_state();  // Set the LED color according to state
+      handle_LED_state();
 #ifdef CONTACTOR_CONTROL
-      handle_contactors();  // Take care of startup precharge/contactor closing
+      handle_contactors();
 #endif
     }
 
-    if (millis() - previousMillisUpdateVal >= intervalUpdateValues)  // Every 5s normally
+    if (millis() - previousMillisUpdateVal >= intervalUpdateValues)
     {
       previousMillisUpdateVal = millis();
-      update_SOC();     // Check if real or calculated SOC% value should be sent
-      update_values();  // Update values heading towards inverter. Prepare for sending on CAN, or write directly to Modbus.
+      update_SOC();
+      update_values();
       if (DUMMY_EVENT_ENABLED) {
         set_event(EVENT_DUMMY_ERROR, (uint8_t)millis());
       }
     }
 
-    // Output
-    send_can();  // Send CAN messages
+
+    send_can();
 #ifdef DUAL_CAN
     send_can2();
 #endif
     run_event_handling();
 
-    delay(1);  // Allow the scheduler to start other tasks on other cores
+    delay(1);
   }
 }
 
 #ifdef WEBSERVER
-// Initialise mDNS
+
 void init_mDNS() {
 
-  // Calulate the host name using the last two chars from the MAC address so each one is likely unique on a network.
-  // e.g batteryemulator8C.local where the mac address is 08:F9:E0:D1:06:8C
+
+
   String mac = WiFi.macAddress();
   String mdnsHost = "batteryemulator" + mac.substring(mac.length() - 2);
 
-  // Initialize mDNS .local resolution
+
   if (!MDNS.begin(mdnsHost)) {
 #ifdef DEBUG_VIA_USB
     Serial.println("Error setting up MDNS responder!");
 #endif
   } else {
-    // Advertise via bonjour the service so we can auto discover these battery emulators on the local network.
+
     MDNS.addService("battery_emulator", "tcp", 80);
   }
 }
 #endif
 
-// Initialization functions
+
 void init_serial() {
-  // Init Serial monitor
+
   Serial.begin(115200);
   while (!Serial) {}
 #ifdef DEBUG_VIA_USB
@@ -258,7 +285,7 @@ void init_stored_settings() {
   settings.begin("batterySettings", false);
 
 #ifndef LOAD_SAVED_SETTINGS_ON_BOOT
-  settings.clear();  // If this clear function is executed, no settings will be read from storage
+  settings.clear();
 #endif
 
   static uint32_t temp = 0;
@@ -282,21 +309,21 @@ void init_stored_settings() {
   if (temp != 0) {
     MAXDISCHARGEAMP = temp;
     temp = settings.getBool("USE_SCALED_SOC", false);
-    USE_SCALED_SOC = temp;  //This bool needs to be checked inside the temp!= block
-  }                         // No way to know if it wasnt reset otherwise
+    USE_SCALED_SOC = temp;
+  }
 
   settings.end();
 }
 
 void init_CAN() {
-  // CAN pins
+
   pinMode(CAN_SE_PIN, OUTPUT);
   digitalWrite(CAN_SE_PIN, LOW);
   CAN_cfg.speed = CAN_SPEED_500KBPS;
   CAN_cfg.tx_pin_id = GPIO_NUM_27;
   CAN_cfg.rx_pin_id = GPIO_NUM_26;
   CAN_cfg.rx_queue = xQueueCreate(rx_queue_size, sizeof(CAN_frame_t));
-  // Init CAN Module
+
   ESP32Can.CANInit();
 
 #ifdef DUAL_CAN
@@ -305,7 +332,7 @@ void init_CAN() {
 #endif
   gBuffer.initWithSize(25);
   SPI.begin(MCP2515_SCK, MCP2515_MISO, MCP2515_MOSI);
-  ACAN2515Settings settings(QUARTZ_FREQUENCY, 500UL * 1000UL);  // CAN bit rate 500 kb/s
+  ACAN2515Settings settings(QUARTZ_FREQUENCY, 500UL * 1000UL);
   settings.mRequestedMode = ACAN2515Settings::NormalMode;
   can.begin(settings, [] { can.isr(); });
 #endif
@@ -316,8 +343,8 @@ void init_CAN() {
 #endif
   SPI.begin(MCP2517_SCK, MCP2517_SDO, MCP2517_SDI);
   ACAN2517FDSettings settings(ACAN2517FDSettings::OSC_40MHz, 500 * 1000,
-                              DataBitRateFactor::x4);      // Arbitration bit rate: 500 kbit/s, data bit rate: 2 Mbit/s
-  settings.mRequestedMode = ACAN2517FDSettings::NormalFD;  // ListenOnly / Normal20B / NormalFD
+                              DataBitRateFactor::x4);
+  settings.mRequestedMode = ACAN2517FDSettings::NormalFD;
   const uint32_t errorCode = canfd.begin(settings, [] { canfd.isr(); });
   if (errorCode == 0) {
 #ifdef DEBUG_VIA_USB
@@ -349,24 +376,24 @@ void init_CAN() {
 }
 
 void init_LED() {
-  // Init LED control
+
   pixels.begin();
 }
 
 void init_contactors() {
-  // Init contactor pins
+
 #ifdef CONTACTOR_CONTROL
   pinMode(POSITIVE_CONTACTOR_PIN, OUTPUT);
   digitalWrite(POSITIVE_CONTACTOR_PIN, LOW);
   pinMode(NEGATIVE_CONTACTOR_PIN, OUTPUT);
   digitalWrite(NEGATIVE_CONTACTOR_PIN, LOW);
 #ifdef PWM_CONTACTOR_CONTROL
-  ledcSetup(POSITIVE_PWM_Ch, PWM_Freq, PWM_Res);           // Setup PWM Channel Frequency and Resolution
-  ledcSetup(NEGATIVE_PWM_Ch, PWM_Freq, PWM_Res);           // Setup PWM Channel Frequency and Resolution
-  ledcAttachPin(POSITIVE_CONTACTOR_PIN, POSITIVE_PWM_Ch);  // Attach Positive Contactor Pin to Hardware PWM Channel
-  ledcAttachPin(NEGATIVE_CONTACTOR_PIN, NEGATIVE_PWM_Ch);  // Attach Positive Contactor Pin to Hardware PWM Channel
-  ledcWrite(POSITIVE_PWM_Ch, 0);                           // Set Positive PWM to 0%
-  ledcWrite(NEGATIVE_PWM_Ch, 0);                           // Set Negative PWM to 0%
+  ledcSetup(POSITIVE_PWM_Ch, PWM_Freq, PWM_Res);
+  ledcSetup(NEGATIVE_PWM_Ch, PWM_Freq, PWM_Res);
+  ledcAttachPin(POSITIVE_CONTACTOR_PIN, POSITIVE_PWM_Ch);
+  ledcAttachPin(NEGATIVE_CONTACTOR_PIN, NEGATIVE_PWM_Ch);
+  ledcWrite(POSITIVE_PWM_Ch, 0);
+  ledcWrite(NEGATIVE_PWM_Ch, 0);
 #endif
   pinMode(PRECHARGE_PIN, OUTPUT);
   digitalWrite(PRECHARGE_PIN, LOW);
@@ -375,7 +402,7 @@ void init_contactors() {
 
 void init_modbus() {
 #if defined(BYD_MODBUS) || defined(LUNA2000_MODBUS)
-  // Set up Modbus RTU Server
+
   pinMode(RS485_EN_PIN, OUTPUT);
   digitalWrite(RS485_EN_PIN, HIGH);
   pinMode(RS485_SE_PIN, OUTPUT);
@@ -384,25 +411,25 @@ void init_modbus() {
   digitalWrite(PIN_5V_EN, HIGH);
 
 #ifdef BYD_MODBUS
-  // Init Static data to the RTU Modbus
+
   handle_static_data_modbus_byd();
 #endif
 
-  // Init Serial2 connected to the RTU Modbus
+
   RTUutils::prepareHardwareSerial(Serial2);
   Serial2.begin(9600, SERIAL_8N1, RS485_RX_PIN, RS485_TX_PIN);
-  // Register served function code worker for server
+
   MBserver.registerWorker(MBTCP_ID, READ_HOLD_REGISTER, &FC03);
   MBserver.registerWorker(MBTCP_ID, WRITE_HOLD_REGISTER, &FC06);
   MBserver.registerWorker(MBTCP_ID, WRITE_MULT_REGISTERS, &FC16);
   MBserver.registerWorker(MBTCP_ID, R_W_MULT_REGISTERS, &FC23);
-  // Start ModbusRTU background task
+
   MBserver.begin(Serial2, 0);
 #endif
 }
 
 void inform_user_on_inverter() {
-  // Inform user what Inverter is used
+
 #ifdef BYD_CAN
 #ifdef DEBUG_VIA_USB
   Serial.println("BYD CAN protocol selected");
@@ -439,8 +466,8 @@ void inform_user_on_inverter() {
 #endif
 #endif
 #ifdef SOLAX_CAN
-  inverterAllowsContactorClosing = false;  // The inverter needs to allow first on this protocol
-  intervalUpdateValues = 800;              // This protocol also requires the values to be updated faster
+  inverterAllowsContactorClosing = false;
+  intervalUpdateValues = 800;
 #ifdef DEBUG_VIA_USB
   Serial.println("SOLAX CAN protocol selected");
 #endif
@@ -448,7 +475,7 @@ void inform_user_on_inverter() {
 }
 
 void init_battery() {
-  // Inform user what battery is used and perform setup
+
   setup_battery();
 
 #ifndef BATTERY_SELECTED
@@ -459,7 +486,7 @@ void init_battery() {
 #ifdef CAN_FD
 void printFrameToWebserial(CANFDMessage frame) {
   int i = 0;
-  String frameString = String(frame.id, HEX);
+  String frameString = String(frame.id, HEX);;
   frameString += " ";
   for(i = 0;i < frame.len; i++) {
     if (frame.data[i] < 16) {
@@ -471,13 +498,13 @@ void printFrameToWebserial(CANFDMessage frame) {
   WebSerial.println(frameString);
 }
 
-// Functions
-void receive_canfd() {  // This section checks if we have a complete CAN-FD message incoming
+
+void receive_canfd() {
   CANFDMessage frame;
   while (canfd.available()) {
     canfd.receive(frame);
     if(frame.id == 0x7EC){
-      // WebSerial.println("received Frame 7ec");
+
       printFrameToWebserial(frame);
     }
     receive_canfd_battery(frame);
@@ -485,16 +512,16 @@ void receive_canfd() {  // This section checks if we have a complete CAN-FD mess
 }
 #endif
 
-void receive_can() {  // This section checks if we have a complete CAN message incoming
-  // Depending on which battery/inverter is selected, we forward this to their respective CAN routines
+void receive_can() {
+
   CAN_frame_t rx_frame;
   if (xQueueReceive(CAN_cfg.rx_queue, &rx_frame, 3 * portTICK_PERIOD_MS) == pdTRUE) {
-    if (rx_frame.FIR.B.FF == CAN_frame_std) {  // New standard frame
-// Battery
+    if (rx_frame.FIR.B.FF == CAN_frame_std) {
+
 #ifndef SERIAL_LINK_RECEIVER
       receive_can_battery(rx_frame);
 #endif
-      // Inverter
+
 #ifdef BYD_CAN
       receive_can_byd(rx_frame);
 #endif
@@ -504,14 +531,14 @@ void receive_can() {  // This section checks if we have a complete CAN message i
 #ifdef SMA_TRIPOWER_CAN
       receive_can_sma_tripower(rx_frame);
 #endif
-      // Charger
+
 #ifdef CHEVYVOLT_CHARGER
       receive_can_chevyvolt_charger(rx_frame);
 #endif
 #ifdef NISSANLEAF_CHARGER
       receive_can_nissanleaf_charger(rx_frame);
 #endif
-    } else {  // New extended frame
+    } else {
 #ifdef PYLON_CAN
       receive_can_pylon(rx_frame);
 #endif
@@ -526,8 +553,8 @@ void receive_can() {  // This section checks if we have a complete CAN message i
 }
 
 void send_can() {
-  // Send CAN messages
-  // Inverter
+
+
 #ifdef BYD_CAN
   send_can_byd();
 #endif
@@ -540,9 +567,9 @@ void send_can() {
 #ifdef SOFAR_CAN
   send_can_sofar();
 #endif
-  // Battery
+
   send_can_battery();
-  // Charger
+
 #ifdef CHEVYVOLT_CHARGER
   send_can_chevyvolt_charger();
 #endif
@@ -552,10 +579,10 @@ void send_can() {
 }
 
 #ifdef DUAL_CAN
-void receive_can2() {  // This function is similar to receive_can, but just takes care of inverters in the 2nd bus.
-  // Depending on which inverter is selected, we forward this to their respective CAN routines
-  CAN_frame_t rx_frame2;    // Struct with ESP32Can library format, compatible with the rest of the program
-  CANMessage MCP2515Frame;  // Struct with ACAN2515 library format, needed to use thw MCP2515 library
+void receive_can2() {
+
+  CAN_frame_t rx_frame2;
+  CANMessage MCP2515Frame;
 
   if (can.available()) {
     can.receive(MCP2515Frame);
@@ -568,11 +595,11 @@ void receive_can2() {  // This function is similar to receive_can, but just take
       rx_frame2.data.u8[i] = MCP2515Frame.data[i];
     }
 
-    if (rx_frame2.FIR.B.FF == CAN_frame_std) {  // New standard frame
+    if (rx_frame2.FIR.B.FF == CAN_frame_std) {
 #ifdef BYD_CAN
       receive_can_byd(rx_frame2);
 #endif
-    } else {  // New extended frame
+    } else {
 #ifdef PYLON_CAN
       receive_can_pylon(rx_frame2);
 #endif
@@ -584,8 +611,8 @@ void receive_can2() {  // This function is similar to receive_can, but just take
 }
 
 void send_can2() {
-  // Send CAN
-  // Inverter
+
+
 #ifdef BYD_CAN
   send_can_byd();
 #endif
@@ -593,7 +620,7 @@ void send_can2() {
 #endif
 
 void handle_LED_state() {
-  // Determine how bright the LED should be
+
   if (rampUp && brightness < maxBrightness) {
     brightness++;
   } else if (rampUp && brightness == maxBrightness) {
@@ -607,36 +634,36 @@ void handle_LED_state() {
   switch (get_event_level()) {
     case EVENT_LEVEL_INFO:
       LEDcolor = GREEN;
-      pixels.setPixelColor(0, pixels.Color(0, brightness, 0));  // Green pulsing LED
+      pixels.setPixelColor(0, pixels.Color(0, brightness, 0));
       break;
     case EVENT_LEVEL_WARNING:
       LEDcolor = YELLOW;
-      pixels.setPixelColor(0, pixels.Color(brightness, brightness, 0));  // Yellow pulsing LED
+      pixels.setPixelColor(0, pixels.Color(brightness, brightness, 0));
       break;
     case EVENT_LEVEL_DEBUG:
     case EVENT_LEVEL_UPDATE:
       LEDcolor = BLUE;
-      pixels.setPixelColor(0, pixels.Color(0, 0, brightness));  // Blue pulsing LED
+      pixels.setPixelColor(0, pixels.Color(0, 0, brightness));
       break;
     case EVENT_LEVEL_ERROR:
       LEDcolor = RED;
-      pixels.setPixelColor(0, pixels.Color(150, 0, 0));  // Red LED full brightness
+      pixels.setPixelColor(0, pixels.Color(150, 0, 0));
       break;
     default:
       break;
   }
 
-  // Check if button is being held down. If so, test all colors
+
   if (digitalRead(0) == LOW) {
-    pixels.setPixelColor(0, pixels.Color(brightness, abs((100 - brightness)), abs((50 - brightness))));  // RGB
+    pixels.setPixelColor(0, pixels.Color(brightness, abs((100 - brightness)), abs((50 - brightness))));
   }
 
-  pixels.show();  // This sends the updated pixel color to the hardware.
+  pixels.show();
 }
 
 #ifdef CONTACTOR_CONTROL
 void handle_contactors() {
-  // First check if we have any active errors, incase we do, turn off the battery
+
   if (system_bms_status == FAULT) {
     timeSpentInFaultedMode++;
   } else {
@@ -650,10 +677,10 @@ void handle_contactors() {
     digitalWrite(PRECHARGE_PIN, LOW);
     digitalWrite(NEGATIVE_CONTACTOR_PIN, LOW);
     digitalWrite(POSITIVE_CONTACTOR_PIN, LOW);
-    return;  // A fault scenario latches the contactor control. It is not possible to recover without a powercycle (and investigation why fault occured)
+    return;
   }
 
-  // After that, check if we are OK to start turning on the battery
+
   if (contactorStatus == DISCONNECTED) {
     digitalWrite(PRECHARGE_PIN, LOW);
 #ifdef PWM_CONTACTOR_CONTROL
@@ -666,16 +693,16 @@ void handle_contactors() {
     }
   }
 
-  // In case the inverter requests contactors to open, set the state accordingly
+
   if (contactorStatus == COMPLETED) {
     if (!inverterAllowsContactorClosing)
       contactorStatus = DISCONNECTED;
-    // Skip running the state machine below if it has already completed
+
     return;
   }
 
   unsigned long currentTime = millis();
-  // Handle actual state machine. This first turns on Precharge, then Negative, then Positive, and finally turns OFF precharge
+
   switch (contactorStatus) {
     case PRECHARGE:
       digitalWrite(PRECHARGE_PIN, HIGH);
@@ -721,26 +748,26 @@ void handle_contactors() {
 #endif
 
 void update_SOC() {
-  if (USE_SCALED_SOC) {  //User has configred a SOC window. Calculate a SOC% to send towards inverter
+  if (USE_SCALED_SOC) {
     static int16_t CalculatedSOC = 0;
     CalculatedSOC = system_real_SOC_pptt;
     CalculatedSOC = (10000) * (CalculatedSOC - (MINPERCENTAGE * 10)) / (MAXPERCENTAGE * 10 - MINPERCENTAGE * 10);
-    if (CalculatedSOC < 0) {  //We are in the real SOC% range of 0-MINPERCENTAGE%
+    if (CalculatedSOC < 0) {
       CalculatedSOC = 0;
     }
-    if (CalculatedSOC > 10000) {  //We are in the real SOC% range of MAXPERCENTAGE-100%
+    if (CalculatedSOC > 10000) {
       CalculatedSOC = 10000;
     }
     system_scaled_SOC_pptt = CalculatedSOC;
-  } else {  // No SOC window wanted. Set scaled to same as real.
+  } else {
     system_scaled_SOC_pptt = system_real_SOC_pptt;
   }
 }
 
 void update_values() {
-  // Battery
-  update_values_battery();  // Map the fake values to the correct registers
-  // Inverter
+
+  update_values_battery();
+
 #ifdef BYD_CAN
   update_values_can_byd();
 #endif
@@ -772,7 +799,7 @@ void runSerialDataLink() {
   static unsigned long updateTime = 0;
   unsigned long currentMillis = millis();
 
-  if ((currentMillis - updateTime) > 1) {  //Every 2ms
+  if ((currentMillis - updateTime) > 1) {
     updateTime = currentMillis;
 #ifdef SERIAL_LINK_RECEIVER
     manageSerialLinkReceiver();
