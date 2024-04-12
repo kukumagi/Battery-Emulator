@@ -33,6 +33,21 @@ unsigned long last_wifi_monitor_time = millis();             //init millis so wi
 unsigned long wifi_reconnect_interval = DEFAULT_WIFI_RECONNECT_INTERVAL;
 unsigned long last_wifi_attempt_time = millis();  //init millis so wifi monitor doesn't run immediately
 
+void recvMsg(uint8_t *data, size_t len){
+  WebSerial.println("Received Data...");
+  String d = "";
+  for(int i=0; i < len; i++){
+    d += char(data[i]);
+  }
+  WebSerial.println(d);
+  // if (d == "ON"){
+  //   digitalWrite(LED, HIGH);
+  // }
+  // if (d=="OFF"){
+  //   digitalWrite(LED, LOW);
+  // }
+}
+
 void init_webserver() {
   // Configure WiFi
   if (AccessPointEnabled) {
@@ -42,6 +57,9 @@ void init_webserver() {
     WiFi.mode(WIFI_STA);  // Only Router connection
   }
   init_WiFi_STA(ssid, password, wifi_channel);
+
+  WebSerial.begin(&server);
+  WebSerial.msgCallback(recvMsg);
 
   String content = index_html;
 

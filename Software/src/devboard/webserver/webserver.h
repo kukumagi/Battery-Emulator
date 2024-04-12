@@ -3,6 +3,7 @@
 
 #include <Preferences.h>
 #include <WiFi.h>
+#include "../../lib/WebSerial/src/WebSerial.h"
 #include "../../../USER_SETTINGS.h"  // Needed for WiFi ssid and password
 #include "../../lib/ayushsharma82-ElegantOTA/src/ElegantOTA.h"
 #ifdef MQTT
