@@ -58,8 +58,8 @@ void init_webserver() {
   }
   init_WiFi_STA(ssid, password, wifi_channel);
 
-  WebSerial.begin(&server);
-  WebSerial.msgCallback(recvMsg);
+  // WebSerial.begin(&server);
+  // WebSerial.msgCallback(recvMsg);
 
   String content = index_html;
 
