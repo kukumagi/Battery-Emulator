@@ -462,9 +462,9 @@ void receive_canfd() {  // This section checks if we have a complete CAN-FD mess
   CANFDMessage frame;
   while (canfd.available()) {
     canfd.receive(frame);
-    if(frame.id == 0x7EC){
-      WebSerial.println("received Frame 7ec");
-    }
+    // if(frame.id == 0x7EC){
+    //   WebSerial.println("received Frame 7ec");
+    // }
     receive_canfd_battery(frame);
   }
 }
