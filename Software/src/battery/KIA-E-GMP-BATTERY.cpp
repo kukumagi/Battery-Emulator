@@ -201,6 +201,8 @@ void printFrame(CANFDMessage rx_frame) {
   }
   Serial.println(" ");
 }
+
+// check for uds packages https://www.csselectronics.com/pages/can-dbc-file-database-intro
 void receive_canfd_battery(CANFDMessage frame) {
   CANstillAlive = 12;
   switch (frame.id) {
