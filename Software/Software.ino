@@ -460,9 +460,15 @@ void init_battery() {
 // Functions
 void receive_canfd() {  // This section checks if we have a complete CAN-FD message incoming
   CANFDMessage frame;
+  int i = 0;
   while (canfd.available()) {
     canfd.receive(frame);
     receive_canfd_battery(frame);
+    i++;
+    if(i > 10) {
+      Serial.println("Exit canfd loopsince running too long");
+      break;
+    }
   }
 }
 #endif

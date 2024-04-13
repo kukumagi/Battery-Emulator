@@ -205,7 +205,7 @@ void printFrame(CANFDMessage rx_frame) {
 // check for uds packages https://www.csselectronics.com/pages/can-dbc-file-database-intro
 void receive_canfd_battery(CANFDMessage frame) {
   CANstillAlive = 12;
-  printFrame(frame);
+  // printFrame(frame);
   switch (frame.id) {
     case 0x7EC:
       // printFrame(frame);
@@ -399,7 +399,12 @@ void send_can_battery() {
     }
     previousMillis500ms = currentMillis;
     EGMP_7E4.data[3] = KIA_7E4_COUNTER;
-    canfd.tryToSend(EGMP_7E4);
+    const bool ok = canfd.tryToSend(EGMP_7E4);
+
+    if (ok) {
+    }else{
+      Serial.println ("Send failure") ;
+    }
 
     KIA_7E4_COUNTER++;
     if (KIA_7E4_COUNTER > 0x0D) {  // gets up to 0x010C before repeating
