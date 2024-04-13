@@ -457,29 +457,11 @@ void init_battery() {
 }
 
 #ifdef CAN_FD
-void printFrameToWebserial(CANFDMessage frame) {
-  int i = 0;
-  String frameString = String(frame.id, HEX);
-  frameString += " ";
-  for(i = 0;i < frame.len; i++) {
-    if (frame.data[i] < 16) {
-      frameString += "0";
-    }
-    frameString += String(frame.data[i], HEX);
-    frameString += " ";
-  }
-  WebSerial.println(frameString);
-}
-
 // Functions
 void receive_canfd() {  // This section checks if we have a complete CAN-FD message incoming
   CANFDMessage frame;
   while (canfd.available()) {
     canfd.receive(frame);
-    if(frame.id == 0x7EC){
-      // WebSerial.println("received Frame 7ec");
-      printFrameToWebserial(frame);
-    }
     receive_canfd_battery(frame);
   }
 }
