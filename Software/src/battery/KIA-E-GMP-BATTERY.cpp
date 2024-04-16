@@ -220,6 +220,14 @@ void receive_canfd_battery(CANFDMessage frame) {
   case 0x275:
   case 0x150:
   case 0x1F5:
+  case 0x335:
+  case 0x25A:
+  case 0x365:
+  case 0x55:
+  case 0x245:
+  case 0x3F5:
+  // case 0x:
+  // case 0x:
   // case 0x:
     /* code */
     break;
