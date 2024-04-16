@@ -8,6 +8,7 @@
 #include "KIA-E-GMP-BATTERY.h"
 
 /* Do not change code below unless you are sure what you are doing */
+static unsigned long previousMillis100ms = 0;  // will store last time a 100ms CAN Message was send
 static unsigned long previousMillis500ms = 0;  // will store last time a 500ms CAN Message was send
 static uint8_t CANstillAlive = 12;             //counter for checking if CAN is still alive
 
@@ -48,6 +49,9 @@ static int8_t heatertemp = 0;
 
 CANFDMessage EGMP_7E4;
 CANFDMessage EGMP_7E4_ack;
+
+CANFDMessage EGMP_553;
+
 
 void set_cell_voltages(CANFDMessage frame, int start, int length, int startCell) {
   for (size_t i = 0; i < length; i++) {
@@ -421,6 +425,15 @@ void receive_can_battery(CAN_frame_t frame) {}  // Not used on CAN-FD battery, j
 void send_can_battery() {
 
   unsigned long currentMillis = millis();
+  //Send 100ms message
+  if (currentMillis - previousMillis100ms >= INTERVAL_100_MS) {
+    previousMillis100ms = currentMillis;
+
+    canfd.tryToSend(EGMP_553);
+    // canfd.tryToSend(&KIA64_57F);
+    // canfd.tryToSend(&KIA64_2A1);
+  }
+
   //Send 500ms CANFD message
   if (currentMillis - previousMillis500ms >= INTERVAL_500_MS) {
 
@@ -467,6 +480,13 @@ void setup_battery(void) {  // Performs one time setup at startup
   EGMP_7E4_ack.len = 8;
   uint8_t dataEGMP_7E4_ack[8] = {0x30, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};  //Ack frame, correct PID is returned
   memcpy(EGMP_7E4_ack.data, dataEGMP_7E4_ack, sizeof(dataEGMP_7E4_ack));
+
+  EGMP_553.id = 0x553;
+  EGMP_553.ext = false;
+  EGMP_553.len = 8;
+  uint8_t dataEGMP_553[8] = {0x04, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00};
+  memcpy(EGMP_553.data, dataEGMP_553, sizeof(dataEGMP_553));
+
 }
 
 #endif
