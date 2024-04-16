@@ -209,6 +209,18 @@ void receive_canfd_battery(CANFDMessage frame) {
   switch (frame.id)
   {
   case 0x7EC:
+  case 0x360:
+  case 0x3BA:
+  case 0x325:
+  case 0x330:
+  case 0x215:
+  case 0x235:
+  case 0x2FA:
+  case 0x21A:
+  case 0x275:
+  case 0x150:
+  case 0x1F5:
+  // case 0x:
     /* code */
     break;
   
