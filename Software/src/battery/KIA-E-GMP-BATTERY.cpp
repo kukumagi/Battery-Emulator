@@ -206,7 +206,17 @@ void printFrame(CANFDMessage rx_frame) {
 // check for uds packages https://www.csselectronics.com/pages/can-dbc-file-database-intro
 void receive_canfd_battery(CANFDMessage frame) {
   CANstillAlive = 12;
-  printFrame(frame);
+  switch (frame.id)
+  {
+  case 0x7EC:
+    /* code */
+    break;
+  
+  default:
+    printFrame(frame);
+    break;
+  }
+  
   switch (frame.id) {
     case 0x7EC:
       // printFrame(frame);
