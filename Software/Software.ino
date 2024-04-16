@@ -1,26 +1,27 @@
 /* Do not change any code below this line unless you are sure what you are doing */
 /* Only change battery specific settings in "USER_SETTINGS.h" */
 
-#include <Arduino.h>
-#include <Preferences.h>
+#include "src/include.h"
+
 #include "HardwareSerial.h"
 #include "USER_SETTINGS.h"
 #include "esp_system.h"
 #include "esp_task_wdt.h"
+#include "esp_timer.h"
 #include "freertos/FreeRTOS.h"
 #include "freertos/task.h"
-#include "src/battery/BATTERIES.h"
 #include "src/charger/CHARGERS.h"
-#include "src/devboard/config.h"
 #include "src/devboard/utils/events.h"
-#include "src/inverter/INVERTERS.h"
-#include "src/lib/adafruit-Adafruit_NeoPixel/Adafruit_NeoPixel.h"
+#include "src/devboard/utils/led_handler.h"
+#include "src/devboard/utils/value_mapping.h"
 #include "src/lib/bblanchon-ArduinoJson/ArduinoJson.h"
 #include "src/lib/eModbus-eModbus/Logging.h"
 #include "src/lib/eModbus-eModbus/ModbusServerRTU.h"
 #include "src/lib/eModbus-eModbus/scripts/mbServerFCs.h"
 #include "src/lib/miwagner-ESP32-Arduino-CAN/CAN_config.h"
 #include "src/lib/miwagner-ESP32-Arduino-CAN/ESP32CAN.h"
+
+#include "src/datalayer/datalayer.h"
 
 #ifdef WEBSERVER
 #include <ESPmDNS.h>
@@ -29,7 +30,7 @@
 
 Preferences settings;  // Store user settings
 // The current software version, shown on webserver
-const char* version_number = "5.7.0";
+const char* version_number = "5.8.dev";
 
 // Interval settings
 uint16_t intervalUpdateValues = INTERVAL_5_S;  // Interval at which to update inverter values / Modbus registers
@@ -59,28 +60,6 @@ uint16_t mbPV[MB_RTU_NUM_VALUES];  // Process variable memory
 ModbusServerRTU MBserver(Serial2, 2000);
 #endif
 
-// Common system parameters. Batteries map their values to these variables
-uint32_t system_capacity_Wh = BATTERY_WH_MAX;            //Wh, 0-500000 Wh
-uint32_t system_remaining_capacity_Wh = BATTERY_WH_MAX;  //Wh, 0-500000 Wh
-int16_t system_temperature_max_dC = 0;                   //C+1, -50.0 - 50.0
-int16_t system_temperature_min_dC = 0;                   //C+1, -50.0 - 50.0
-int32_t system_active_power_W = 0;                       //Watts, -200000 to 200000 W
-int16_t system_battery_current_dA = 0;                   //A+1, -1000 - 1000
-uint16_t system_battery_voltage_dV = 3700;               //V+1,  0-1000.0 (0-10000)
-uint16_t system_max_design_voltage_dV = 5000;            //V+1,  0-1000.0 (0-10000)
-uint16_t system_min_design_voltage_dV = 2500;            //V+1,  0-1000.0 (0-10000)
-uint16_t system_scaled_SOC_pptt = 5000;                  //SOC%, 0-100.00 (0-10000)
-uint16_t system_real_SOC_pptt = 5000;                    //SOC%, 0-100.00 (0-10000)
-uint16_t system_SOH_pptt = 9900;                         //SOH%, 0-100.00 (0-10000)
-uint32_t system_max_discharge_power_W = 0;               //Watts, 0 to 200000
-uint32_t system_max_charge_power_W = 4312;               //Watts, 0 to 200000
-uint16_t system_cell_max_voltage_mV = 3700;              //mV, 0-5000 , Stores the highest cell millivolt value
-uint16_t system_cell_min_voltage_mV = 3700;              //mV, 0-5000, Stores the minimum cell millivolt value
-uint16_t system_cellvoltages_mV[MAX_AMOUNT_CELLS];  //Array with all cell voltages. Oversized to accomodate all setups
-uint8_t system_bms_status = ACTIVE;  //ACTIVE - [0..5]<>[STANDBY,INACTIVE,DARKSTART,ACTIVE,FAULT,UPDATING]
-uint8_t system_number_of_cells = 0;  //Total number of cell voltages, set by each battery
-bool system_LFP_Chemistry = false;   //Set to true or false depending on cell chemistry
-
 // Common charger parameters
 volatile float charger_setpoint_HV_VDC = 0.0f;
 volatile float charger_setpoint_HV_IDC = 0.0f;
@@ -96,12 +75,14 @@ float charger_stat_ACvol = 0;
 float charger_stat_LVcur = 0;
 float charger_stat_LVvol = 0;
 
-// LED parameters
-Adafruit_NeoPixel pixels(1, WS2812_PIN, NEO_GRB + NEO_KHZ800);
-static uint8_t brightness = 0;
-static bool rampUp = true;
-const uint8_t maxBrightness = 100;
-uint8_t LEDcolor = GREEN;
+// Task time measurement for debugging and for setting CPU load events
+int64_t core_task_time_us;
+MyTimer core_task_timer_10s(INTERVAL_10_S);
+
+int64_t mqtt_task_time_us;
+MyTimer mqtt_task_timer_10s(INTERVAL_10_S);
+
+MyTimer loop_task_timer_10s(INTERVAL_10_S);
 
 // Contactor parameters
 #ifdef CONTACTOR_CONTROL
@@ -123,10 +104,9 @@ unsigned long prechargeStartTime = 0;
 unsigned long negativeStartTime = 0;
 unsigned long timeSpentInFaultedMode = 0;
 #endif
-bool batteryAllowsContactorClosing = false;
-bool inverterAllowsContactorClosing = true;
 
-TaskHandle_t mainLoopTask;
+TaskHandle_t main_loop_task;
+TaskHandle_t mqtt_loop_task;
 
 // Initialization
 void setup() {
@@ -136,15 +116,16 @@ void setup() {
 
 #ifdef WEBSERVER
   init_webserver();
-
   init_mDNS();
+#ifdef MQTT
+  xTaskCreatePinnedToCore((TaskFunction_t)&mqtt_loop, "mqtt_loop", 4096, &mqtt_task_time_us, TASK_CONNECTIVITY_PRIO,
+                          &mqtt_loop_task, WIFI_CORE);
+#endif
 #endif
 
   init_events();
 
   init_CAN();
-
-  init_LED();
 
   init_contactors();
 
@@ -161,26 +142,54 @@ void setup() {
 
   esp_task_wdt_deinit();  // Disable watchdog
 
-  xTaskCreatePinnedToCore((TaskFunction_t)&mainLoop, "mainLoop", 4096, NULL, 8, &mainLoopTask, 1);
+  xTaskCreatePinnedToCore((TaskFunction_t)&core_loop, "core_loop", 4096, &core_task_time_us, TASK_CORE_PRIO,
+                          &main_loop_task, CORE_FUNCTION_CORE);
 }
 
 // Perform main program functions
 void loop() {
-  ;
+  START_TIME_MEASUREMENT(loop_func);
+  run_event_handling();
+  END_TIME_MEASUREMENT_MAX(loop_func, datalayer.system.status.loop_task_10s_max_us);
+#ifdef FUNCTION_TIME_MEASUREMENT
+  if (loop_task_timer_10s.elapsed()) {
+    datalayer.system.status.loop_task_10s_max_us = 0;
+  }
+#endif
 }
 
-void mainLoop(void* pvParameters) {
-  while (true) {
-
-#ifdef WEBSERVER
-    // Over-the-air updates by ElegantOTA
-    wifi_monitor();
-    ElegantOTA.loop();
 #ifdef MQTT
+void mqtt_loop(void* task_time_us) {
+  // Init MQTT
+  init_mqtt();
+
+  while (true) {
+    START_TIME_MEASUREMENT(mqtt);
     mqtt_loop();
+    END_TIME_MEASUREMENT_MAX(mqtt, datalayer.system.status.mqtt_task_10s_max_us);
+
+#ifdef FUNCTION_TIME_MEASUREMENT
+    if (mqtt_task_timer_10s.elapsed()) {
+      datalayer.system.status.mqtt_task_10s_max_us = 0;
+    }
 #endif
+    delay(1);
+  }
+}
 #endif
 
+void core_loop(void* task_time_us) {
+  TickType_t xLastWakeTime = xTaskGetTickCount();
+  const TickType_t xFrequency = pdMS_TO_TICKS(1);  // Convert 1ms to ticks
+  led_init();
+  int64_t prev_wake;
+
+  while (true) {
+    int64_t now = esp_timer_get_time();
+    int64_t wake_period = now - prev_wake;
+    prev_wake = now;
+    START_TIME_MEASUREMENT(all);
+    START_TIME_MEASUREMENT(comm);
     // Input
     receive_can();  // Receive CAN messages. Runs as fast as possible
 #ifdef CAN_FD
@@ -192,16 +201,26 @@ void mainLoop(void* pvParameters) {
 #if defined(SERIAL_LINK_RECEIVER) || defined(SERIAL_LINK_TRANSMITTER)
     runSerialDataLink();
 #endif
+    END_TIME_MEASUREMENT_MAX(comm, datalayer.system.status.time_comm_us);
+#ifdef WEBSERVER
+    START_TIME_MEASUREMENT(wifi_ota);
+    wifi_monitor();
+    ElegantOTA.loop();
+    END_TIME_MEASUREMENT_MAX(wifi_ota, datalayer.system.status.time_wifi_us);
+#endif
 
+    START_TIME_MEASUREMENT(time_10ms);
     // Process
     if (millis() - previousMillis10ms >= INTERVAL_10_MS) {
       previousMillis10ms = millis();
-      handle_LED_state();  // Set the LED color according to state
+      led_exe();
 #ifdef CONTACTOR_CONTROL
       handle_contactors();  // Take care of startup precharge/contactor closing
 #endif
     }
+    END_TIME_MEASUREMENT_MAX(time_10ms, datalayer.system.status.time_10ms_us);
 
+    START_TIME_MEASUREMENT(time_5s);
     if (millis() - previousMillisUpdateVal >= intervalUpdateValues)  // Every 5s normally
     {
       previousMillisUpdateVal = millis();
@@ -211,15 +230,41 @@ void mainLoop(void* pvParameters) {
         set_event(EVENT_DUMMY_ERROR, (uint8_t)millis());
       }
     }
+    END_TIME_MEASUREMENT_MAX(time_5s, datalayer.system.status.time_5s_us);
 
+    START_TIME_MEASUREMENT(cantx);
     // Output
     send_can();  // Send CAN messages
 #ifdef DUAL_CAN
     send_can2();
 #endif
-    run_event_handling();
+    END_TIME_MEASUREMENT_MAX(cantx, datalayer.system.status.time_cantx_us);
+    END_TIME_MEASUREMENT_MAX(all, datalayer.system.status.core_task_10s_max_us);
+#ifdef FUNCTION_TIME_MEASUREMENT
 
-    delay(1);  // Allow the scheduler to start other tasks on other cores
+    if (datalayer.system.status.core_task_10s_max_us > datalayer.system.status.core_task_max_us) {
+      // Update worst case total time
+      datalayer.system.status.core_task_max_us = datalayer.system.status.core_task_10s_max_us;
+      // Record snapshots of task times
+      datalayer.system.status.time_snap_comm_us = datalayer.system.status.time_comm_us;
+      datalayer.system.status.time_snap_10ms_us = datalayer.system.status.time_10ms_us;
+      datalayer.system.status.time_snap_5s_us = datalayer.system.status.time_5s_us;
+      datalayer.system.status.time_snap_cantx_us = datalayer.system.status.time_cantx_us;
+      datalayer.system.status.time_snap_wifi_us = datalayer.system.status.time_wifi_us;
+    }
+
+    datalayer.system.status.core_task_max_us =
+        MAX(datalayer.system.status.core_task_10s_max_us, datalayer.system.status.core_task_max_us);
+    if (core_task_timer_10s.elapsed()) {
+      datalayer.system.status.time_wifi_us = 0;
+      datalayer.system.status.time_comm_us = 0;
+      datalayer.system.status.time_10ms_us = 0;
+      datalayer.system.status.time_5s_us = 0;
+      datalayer.system.status.time_cantx_us = 0;
+      datalayer.system.status.core_task_10s_max_us = 0;
+    }
+#endif
+    vTaskDelayUntil(&xLastWakeTime, xFrequency);
   }
 }
 
@@ -264,26 +309,26 @@ void init_stored_settings() {
   static uint32_t temp = 0;
   temp = settings.getUInt("BATTERY_WH_MAX", false);
   if (temp != 0) {
-    BATTERY_WH_MAX = temp;
+    datalayer.battery.info.total_capacity_Wh = temp;
   }
   temp = settings.getUInt("MAXPERCENTAGE", false);
   if (temp != 0) {
-    MAXPERCENTAGE = temp;
+    datalayer.battery.settings.max_percentage = temp * 10;  // Multiply by 10 for backwards compatibility
   }
   temp = settings.getUInt("MINPERCENTAGE", false);
   if (temp != 0) {
-    MINPERCENTAGE = temp;
+    datalayer.battery.settings.min_percentage = temp * 10;  // Multiply by 10 for backwards compatibility
   }
   temp = settings.getUInt("MAXCHARGEAMP", false);
   if (temp != 0) {
-    MAXCHARGEAMP = temp;
+    datalayer.battery.info.max_charge_amp_dA = temp;
   }
   temp = settings.getUInt("MAXDISCHARGEAMP", false);
   if (temp != 0) {
-    MAXDISCHARGEAMP = temp;
+    datalayer.battery.info.max_discharge_amp_dA = temp;
     temp = settings.getBool("USE_SCALED_SOC", false);
-    USE_SCALED_SOC = temp;  //This bool needs to be checked inside the temp!= block
-  }                         // No way to know if it wasnt reset otherwise
+    datalayer.battery.settings.soc_scaling_active = temp;  //This bool needs to be checked inside the temp!= block
+  }                                                        // No way to know if it wasnt reset otherwise
 
   settings.end();
 }
@@ -348,11 +393,6 @@ void init_CAN() {
 #endif
 }
 
-void init_LED() {
-  // Init LED control
-  pixels.begin();
-}
-
 void init_contactors() {
   // Init contactor pins
 #ifdef CONTACTOR_CONTROL
@@ -397,7 +437,7 @@ void init_modbus() {
   MBserver.registerWorker(MBTCP_ID, WRITE_MULT_REGISTERS, &FC16);
   MBserver.registerWorker(MBTCP_ID, R_W_MULT_REGISTERS, &FC23);
   // Start ModbusRTU background task
-  MBserver.begin(Serial2, 0);
+  MBserver.begin(Serial2, MODBUS_CORE);
 #endif
 }
 
@@ -439,8 +479,9 @@ void inform_user_on_inverter() {
 #endif
 #endif
 #ifdef SOLAX_CAN
-  inverterAllowsContactorClosing = false;  // The inverter needs to allow first on this protocol
-  intervalUpdateValues = 800;              // This protocol also requires the values to be updated faster
+  datalayer.system.status.inverter_allows_contactor_closing =
+      false;                   // The inverter needs to allow first on this protocol
+  intervalUpdateValues = 800;  // This protocol also requires the values to be updated faster
 #ifdef DEBUG_VIA_USB
   Serial.println("SOLAX CAN protocol selected");
 #endif
@@ -450,10 +491,6 @@ void inform_user_on_inverter() {
 void init_battery() {
   // Inform user what battery is used and perform setup
   setup_battery();
-
-#ifndef BATTERY_SELECTED
-#error No battery selected! Choose one from the USER_SETTINGS.h file
-#endif
 }
 
 #ifdef CAN_FD
@@ -495,7 +532,7 @@ void receive_canfd() {  // This section checks if we have a complete CAN-FD mess
 void receive_can() {  // This section checks if we have a complete CAN message incoming
   // Depending on which battery/inverter is selected, we forward this to their respective CAN routines
   CAN_frame_t rx_frame;
-  if (xQueueReceive(CAN_cfg.rx_queue, &rx_frame, 3 * portTICK_PERIOD_MS) == pdTRUE) {
+  if (xQueueReceive(CAN_cfg.rx_queue, &rx_frame, 0) == pdTRUE) {
     if (rx_frame.FIR.B.FF == CAN_frame_std) {  // New standard frame
 // Battery
 #ifndef SERIAL_LINK_RECEIVER
@@ -599,52 +636,10 @@ void send_can2() {
 }
 #endif
 
-void handle_LED_state() {
-  // Determine how bright the LED should be
-  if (rampUp && brightness < maxBrightness) {
-    brightness++;
-  } else if (rampUp && brightness == maxBrightness) {
-    rampUp = false;
-  } else if (!rampUp && brightness > 0) {
-    brightness--;
-  } else if (!rampUp && brightness == 0) {
-    rampUp = true;
-  }
-
-  switch (get_event_level()) {
-    case EVENT_LEVEL_INFO:
-      LEDcolor = GREEN;
-      pixels.setPixelColor(0, pixels.Color(0, brightness, 0));  // Green pulsing LED
-      break;
-    case EVENT_LEVEL_WARNING:
-      LEDcolor = YELLOW;
-      pixels.setPixelColor(0, pixels.Color(brightness, brightness, 0));  // Yellow pulsing LED
-      break;
-    case EVENT_LEVEL_DEBUG:
-    case EVENT_LEVEL_UPDATE:
-      LEDcolor = BLUE;
-      pixels.setPixelColor(0, pixels.Color(0, 0, brightness));  // Blue pulsing LED
-      break;
-    case EVENT_LEVEL_ERROR:
-      LEDcolor = RED;
-      pixels.setPixelColor(0, pixels.Color(150, 0, 0));  // Red LED full brightness
-      break;
-    default:
-      break;
-  }
-
-  // Check if button is being held down. If so, test all colors
-  if (digitalRead(0) == LOW) {
-    pixels.setPixelColor(0, pixels.Color(brightness, abs((100 - brightness)), abs((50 - brightness))));  // RGB
-  }
-
-  pixels.show();  // This sends the updated pixel color to the hardware.
-}
-
 #ifdef CONTACTOR_CONTROL
 void handle_contactors() {
   // First check if we have any active errors, incase we do, turn off the battery
-  if (system_bms_status == FAULT) {
+  if (datalayer.battery.status.bms_status == FAULT) {
     timeSpentInFaultedMode++;
   } else {
     timeSpentInFaultedMode = 0;
@@ -668,14 +663,15 @@ void handle_contactors() {
     ledcWrite(NEGATIVE_PWM_Ch, 0);
 #endif
 
-    if (batteryAllowsContactorClosing && inverterAllowsContactorClosing) {
+    if (datalayer.system.status.battery_allows_contactor_closing &&
+        datalayer.system.status.inverter_allows_contactor_closing) {
       contactorStatus = PRECHARGE;
     }
   }
 
   // In case the inverter requests contactors to open, set the state accordingly
   if (contactorStatus == COMPLETED) {
-    if (!inverterAllowsContactorClosing)
+    if (!datalayer.system.status.inverter_allows_contactor_closing)
       contactorStatus = DISCONNECTED;
     // Skip running the state machine below if it has already completed
     return;
@@ -728,19 +724,37 @@ void handle_contactors() {
 #endif
 
 void update_SOC() {
-  if (USE_SCALED_SOC) {  //User has configred a SOC window. Calculate a SOC% to send towards inverter
-    static int16_t CalculatedSOC = 0;
-    CalculatedSOC = system_real_SOC_pptt;
-    CalculatedSOC = (10000) * (CalculatedSOC - (MINPERCENTAGE * 10)) / (MAXPERCENTAGE * 10 - MINPERCENTAGE * 10);
-    if (CalculatedSOC < 0) {  //We are in the real SOC% range of 0-MINPERCENTAGE%
-      CalculatedSOC = 0;
-    }
-    if (CalculatedSOC > 10000) {  //We are in the real SOC% range of MAXPERCENTAGE-100%
-      CalculatedSOC = 10000;
-    }
-    system_scaled_SOC_pptt = CalculatedSOC;
+  if (datalayer.battery.settings.soc_scaling_active) {
+    /** SOC Scaling
+     * 
+     * This is essentially a more static version of a stochastic oscillator (https://en.wikipedia.org/wiki/Stochastic_oscillator)
+     * 
+     * The idea is this:
+     * 
+     *    real_soc - min_percent                   3000 - 1000
+     * ------------------------- = scaled_soc, or  ----------- = 0.25
+     * max_percent - min-percent                   8000 - 1000
+     * 
+     * Because we use integers, we want to account for the scaling:
+     * 
+     * 10000 * (real_soc - min_percent)                   10000 * (3000 - 1000)
+     * -------------------------------- = scaled_soc, or  --------------------- = 2500
+     *     max_percent - min_percent                           8000 - 1000
+     * 
+     * Or as a one-liner: (10000 * (real_soc - min_percentage)) / (max_percentage - min_percentage)
+     * 
+     * Before we use real_soc, we must make sure that it's within the range of min_percentage and max_percentage.
+    */
+    uint32_t calc_soc;
+    // Make sure that the SOC starts out between min and max percentages
+    calc_soc = CONSTRAIN(datalayer.battery.status.real_soc, datalayer.battery.settings.min_percentage,
+                         datalayer.battery.settings.max_percentage);
+    // Perform scaling
+    calc_soc = 10000 * (calc_soc - datalayer.battery.settings.min_percentage);
+    calc_soc = calc_soc / (datalayer.battery.settings.max_percentage - datalayer.battery.settings.min_percentage);
+    datalayer.battery.status.reported_soc = calc_soc;
   } else {  // No SOC window wanted. Set scaled to same as real.
-    system_scaled_SOC_pptt = system_real_SOC_pptt;
+    datalayer.battery.status.reported_soc = datalayer.battery.status.real_soc;
   }
 }
 
@@ -799,12 +813,14 @@ void init_serialDataLink() {
 
 void storeSettings() {
   settings.begin("batterySettings", false);
-  settings.putUInt("BATTERY_WH_MAX", BATTERY_WH_MAX);
-  settings.putUInt("MAXPERCENTAGE", MAXPERCENTAGE);
-  settings.putUInt("MINPERCENTAGE", MINPERCENTAGE);
-  settings.putUInt("MAXCHARGEAMP", MAXCHARGEAMP);
-  settings.putUInt("MAXDISCHARGEAMP", MAXDISCHARGEAMP);
-  settings.putBool("USE_SCALED_SOC", USE_SCALED_SOC);
+  settings.putUInt("BATTERY_WH_MAX", datalayer.battery.info.total_capacity_Wh);
+  settings.putUInt("MAXPERCENTAGE",
+                   datalayer.battery.settings.max_percentage / 10);  // Divide by 10 for backwards compatibility
+  settings.putUInt("MINPERCENTAGE",
+                   datalayer.battery.settings.min_percentage / 10);  // Divide by 10 for backwards compatibility
+  settings.putUInt("MAXCHARGEAMP", datalayer.battery.info.max_charge_amp_dA);
+  settings.putUInt("MAXDISCHARGEAMP", datalayer.battery.info.max_discharge_amp_dA);
+  settings.putBool("USE_SCALED_SOC", datalayer.battery.settings.soc_scaling_active);
 
   settings.end();
 }

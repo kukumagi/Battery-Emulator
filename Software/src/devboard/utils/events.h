@@ -1,14 +1,12 @@
 #ifndef __EVENTS_H__
 #define __EVENTS_H__
-#include <stdint.h>
-
 #ifndef UNIT_TEST
-#include <Arduino.h>
+#include "../../include.h"
 #endif
 
 // #define INCLUDE_EVENTS_TEST  // Enable to run an event test loop, see events_test_on_target.cpp
 
-#define EE_MAGIC_HEADER_VALUE 0x0001  // 0x0000 to 0xFFFF
+#define EE_MAGIC_HEADER_VALUE 0x0002  // 0x0000 to 0xFFFF
 
 #define GENERATE_ENUM(ENUM) ENUM,
 #define GENERATE_STRING(STRING) #STRING,
@@ -40,9 +38,12 @@
   XX(EVENT_KWH_PLAUSIBILITY_ERROR)      \
   XX(EVENT_BATTERY_EMPTY)               \
   XX(EVENT_BATTERY_FULL)                \
+  XX(EVENT_BATTERY_CAUTION)             \
   XX(EVENT_BATTERY_CHG_STOP_REQ)        \
   XX(EVENT_BATTERY_DISCHG_STOP_REQ)     \
   XX(EVENT_BATTERY_CHG_DISCHG_STOP_REQ) \
+  XX(EVENT_BATTERY_REQUESTS_HEAT)       \
+  XX(EVENT_BATTERY_WARMED_UP)           \
   XX(EVENT_LOW_SOH)                     \
   XX(EVENT_HVIL_FAILURE)                \
   XX(EVENT_INTERNAL_OPEN_FAULT)         \
@@ -109,7 +110,5 @@ const EVENTS_STRUCT_TYPE* get_event_pointer(EVENTS_ENUM_TYPE event);
 void run_event_handling(void);
 
 void run_sequence_on_target(void);
-
-extern uint8_t system_bms_status;  //Enum 0-5
 
 #endif  // __MYTIMER_H__
