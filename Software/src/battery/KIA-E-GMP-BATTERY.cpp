@@ -422,17 +422,26 @@ void receive_canfd_battery(CANFDMessage frame) {
 
 void receive_can_battery(CAN_frame_t frame) {}  // Not used on CAN-FD battery, just included to compile
 
+String inString = "";
 void send_can_battery() {
-
+  while(Serial.available()){
+    char inChar = Serial.read();
+    if(isDigit(inChar)) inString += inChar;
+    else if(inChar == '\n'){
+      Serial.read();
+      Serial.println(inString);
+    }
+    
+  }
   unsigned long currentMillis = millis();
   //Send 100ms message
-  if (currentMillis - previousMillis100ms >= INTERVAL_100_MS) {
-    previousMillis100ms = currentMillis;
+  // if (currentMillis - previousMillis100ms >= INTERVAL_100_MS) {
+  //   previousMillis100ms = currentMillis;
 
-    canfd.tryToSend(EGMP_553);
-    // canfd.tryToSend(&KIA64_57F);
-    // canfd.tryToSend(&KIA64_2A1);
-  }
+  //   // canfd.tryToSend(EGMP_553);
+  //   // canfd.tryToSend(&KIA64_57F);
+  //   // canfd.tryToSend(&KIA64_2A1);
+  // }
 
   //Send 500ms CANFD message
   if (currentMillis - previousMillis500ms >= INTERVAL_500_MS) {
