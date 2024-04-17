@@ -8,6 +8,7 @@
 #include "KIA-E-GMP-BATTERY.h"
 
 /* Do not change code below unless you are sure what you are doing */
+static unsigned long previousMillis10ms = 0;  // will store last time a 10ms CAN Message was send
 static unsigned long previousMillis100ms = 0;  // will store last time a 100ms CAN Message was send
 static unsigned long previousMillis500ms = 0;  // will store last time a 500ms CAN Message was send
 static uint8_t CANstillAlive = 12;             //counter for checking if CAN is still alive
@@ -206,7 +207,14 @@ void printFrame(CANFDMessage rx_frame) {
   }
   Serial.println(" ");
 }
+void sendCanFd(CANFDMessage frame) {
+  const bool ok = canfd.tryToSend(frame);
 
+  if (ok) {
+  }else{
+    Serial.println ("Send failure") ;
+  }
+}
 // check for uds packages https://www.csselectronics.com/pages/can-dbc-file-database-intro
 void receive_canfd_battery(CANFDMessage frame) {
   CANstillAlive = 12;
@@ -243,13 +251,13 @@ void receive_canfd_battery(CANFDMessage frame) {
   
   switch (frame.id) {
     case 0x7EC:
-      // printFrame(frame);
+      printFrame(frame);
       switch (frame.data[0]) {
         case 0x10:  //"PID Header"
           // Serial.println ("Send ack");
           poll_data_pid = frame.data[4];
           // if (frame.data[4] == poll_data_pid) {
-          canfd.tryToSend(EGMP_7E4_ack);  //Send ack to BMS if the same frame is sent as polled
+          sendCanFd(EGMP_7E4_ack);  //Send ack to BMS if the same frame is sent as polled
           // }
           break;
         case 0x21:  //First frame in PID group
@@ -423,24 +431,22 @@ void receive_canfd_battery(CANFDMessage frame) {
 void receive_can_battery(CAN_frame_t frame) {}  // Not used on CAN-FD battery, just included to compile
 
 String inString = "";
+CANFDMessage EGMP_57F;
+CANFDMessage EGMP_2A1;
+CANFDMessage EGMP_200;
+CANFDMessage EGMP_523;
+CANFDMessage EGMP_524;
+
 void send_can_battery() {
-  while(Serial.available()){
-    char inChar = Serial.read();
-    if(isDigit(inChar)) inString += inChar;
-    else if(inChar == '\n'){
-      Serial.read();
-      Serial.println(inString);
-    }
-    
-  }
+
   unsigned long currentMillis = millis();
-  //Send 100ms message
+  // //Send 100ms message
   // if (currentMillis - previousMillis100ms >= INTERVAL_100_MS) {
   //   previousMillis100ms = currentMillis;
 
-  //   // canfd.tryToSend(EGMP_553);
-  //   // canfd.tryToSend(&KIA64_57F);
-  //   // canfd.tryToSend(&KIA64_2A1);
+  //   sendCanFd(EGMP_553);
+  //   sendCanFd(EGMP_57F);
+  //   sendCanFd(EGMP_2A1);
   // }
 
   //Send 500ms CANFD message
@@ -452,18 +458,73 @@ void send_can_battery() {
     }
     previousMillis500ms = currentMillis;
     EGMP_7E4.data[3] = KIA_7E4_COUNTER;
-    const bool ok = canfd.tryToSend(EGMP_7E4);
+    sendCanFd(EGMP_7E4);
 
-    if (ok) {
-    }else{
-      Serial.println ("Send failure") ;
-    }
 
     KIA_7E4_COUNTER++;
-    if (KIA_7E4_COUNTER > 0x0D) {  // gets up to 0x010C before repeating
+    if (KIA_7E4_COUNTER > 0x1D) {  // gets up to 0x010C before repeating
       KIA_7E4_COUNTER = 0x01;
     }
   }
+
+  // // Send 10ms CAN Message
+  // if (currentMillis - previousMillis10ms >= INTERVAL_10_MS) {
+  //   // Check if sending of CAN messages has been delayed too much.
+  //   if ((currentMillis - previousMillis10ms >= INTERVAL_10_MS_DELAYED) && (currentMillis > BOOTUP_TIME)) {
+  //     set_event(EVENT_CAN_OVERRUN, (currentMillis - previousMillis10ms));
+  //   }
+  //   previousMillis10ms = currentMillis;
+
+  //   // switch (counter_200) {
+  //   //   case 0:
+  //   //     KIA_HYUNDAI_200.data.u8[5] = 0x17;
+  //   //     ++counter_200;
+  //   //     break;
+  //   //   case 1:
+  //   //     KIA_HYUNDAI_200.data.u8[5] = 0x57;
+  //   //     ++counter_200;
+  //   //     break;
+  //   //   case 2:
+  //   //     KIA_HYUNDAI_200.data.u8[5] = 0x97;
+  //   //     ++counter_200;
+  //   //     break;
+  //   //   case 3:
+  //   //     KIA_HYUNDAI_200.data.u8[5] = 0xD7;
+  //   //     if (startedUp) {
+  //   //       ++counter_200;
+  //   //     } else {
+  //   //       counter_200 = 0;
+  //   //     }
+  //   //     break;
+  //   //   case 4:
+  //   //     KIA_HYUNDAI_200.data.u8[3] = 0x10;
+  //   //     KIA_HYUNDAI_200.data.u8[5] = 0xFF;
+  //   //     ++counter_200;
+  //   //     break;
+  //   //   case 5:
+  //   //     KIA_HYUNDAI_200.data.u8[5] = 0x3B;
+  //   //     ++counter_200;
+  //   //     break;
+  //   //   case 6:
+  //   //     KIA_HYUNDAI_200.data.u8[5] = 0x7B;
+  //   //     ++counter_200;
+  //   //     break;
+  //   //   case 7:
+  //   //     KIA_HYUNDAI_200.data.u8[5] = 0xBB;
+  //   //     ++counter_200;
+  //   //     break;
+  //   //   case 8:
+  //   //     KIA_HYUNDAI_200.data.u8[5] = 0xFB;
+  //   //     counter_200 = 5;
+  //   //     break;
+  //   // }
+
+  //   sendCanFd(EGMP_200);
+
+  //   sendCanFd(EGMP_523);
+
+  //   sendCanFd(EGMP_524);
+  // }
 }
 
 void setup_battery(void) {  // Performs one time setup at startup
@@ -495,6 +556,43 @@ void setup_battery(void) {  // Performs one time setup at startup
   EGMP_553.len = 8;
   uint8_t dataEGMP_553[8] = {0x04, 0x00, 0x80, 0x00, 0x00, 0x00, 0x80, 0x00};
   memcpy(EGMP_553.data, dataEGMP_553, sizeof(dataEGMP_553));
+
+
+  EGMP_57F.id = 0x57F;
+  EGMP_57F.ext = false;
+  EGMP_57F.len = 8;
+  uint8_t dataEGMP_57F[8] = {0x80, 0x0A, 0x72, 0x00, 0x00, 0x00, 0x00, 0x72};
+  memcpy(EGMP_57F.data, dataEGMP_57F, sizeof(dataEGMP_57F));
+
+  EGMP_2A1.id = 0x2A1;
+  EGMP_2A1.ext = false;
+  EGMP_2A1.len = 8;
+  uint8_t dataEGMP_2A1[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  memcpy(EGMP_2A1.data, dataEGMP_2A1, sizeof(dataEGMP_2A1));
+
+  EGMP_200.id = 0x200;
+  EGMP_200.ext = false;
+  EGMP_200.len = 8;
+  uint8_t dataEGMP_200[8] = {0x00, 0x80, 0xD8, 0x04, 0x00, 0x17, 0xD0, 0x00};
+  memcpy(EGMP_200.data, dataEGMP_200, sizeof(dataEGMP_200));
+
+  EGMP_523.id = 0x523;
+  EGMP_523.ext = false;
+  EGMP_523.len = 8;
+  uint8_t dataEGMP_523[8] = {0x08, 0x38, 0x36, 0x36, 0x33, 0x34, 0x00, 0x01};
+  memcpy(EGMP_523.data, dataEGMP_523, sizeof(dataEGMP_523));
+
+  EGMP_524.id = 0x524;
+  EGMP_524.ext = false;
+  EGMP_524.len = 8;
+  uint8_t dataEGMP_524[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  memcpy(EGMP_524.data, dataEGMP_524, sizeof(dataEGMP_524));
+
+  // EGMP_2A1.id = 0x;
+  // EGMP_2A1.ext = false;
+  // EGMP_2A1.len = 8;
+  // uint8_t data[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  // memcpy(EGMP_2A1.data, data, sizeof(data));
 
 }
 

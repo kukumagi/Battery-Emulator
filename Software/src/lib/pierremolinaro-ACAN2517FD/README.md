@@ -29,7 +29,7 @@ Configuration is a four-step operation.
 4. You check the `errorCode` value to detect configuration error(s).
 
 ```cpp
-static const byte MCP2517_CS  = 20 ; // CS input of MCP2517FD, adapt to your design
+static const byte   = 20 ; // CS input of MCP2517FD, adapt to your design
 static const byte MCP2517_INT = 37 ; // INT output of MCP2517FD, adapt to your design
 
 ACAN2517FD can (MCP2517_CS, SPI, MCP2517_INT) ; // You can use SPI2, SPI3, if provided by your microcontroller
