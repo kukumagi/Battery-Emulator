@@ -509,22 +509,25 @@ void init_battery() {
 //   WebSerial.println(frameString);
 // }
 
+void printFrame2(CANFDMessage rx_frame) {
+  int i = 0;
+  Serial.print(rx_frame.id,HEX);
+  Serial.print(" ");
+  for(i = 0;i < rx_frame.len; i++) {
+    Serial.print(rx_frame.data[i],HEX);
+    Serial.print(" ");
+  }
+  Serial.println(" ");
+}
+
 // Functions
 void receive_canfd() {  // This section checks if we have a complete CAN-FD message incoming
   CANFDMessage frame;
   int i = 0;
-  while (canfd.available()) {
+  if (canfd.available()) {
     canfd.receive(frame);
+    // printFrame2(frame);
     receive_canfd_battery(frame);
-    // if(frame.id == 0x7EC){
-    //   // WebSerial.println("received Frame 7ec");
-    //   printFrameToWebserial(frame);
-    // }
-    i++;
-    if(i > 10) {
-      // WebSerial.println("Exit canfd loopsince running too long");
-      break;
-    }
   }
 }
 #endif
