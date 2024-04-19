@@ -235,7 +235,7 @@ void receive_canfd_battery(CANFDMessage frame) {
   case 0x335:
   case 0x25A:
   case 0x365:
-  case 0x55:
+  case 0x055:
   case 0x245:
   case 0x3F5:
   // case 0x:
@@ -433,6 +433,7 @@ void receive_can_battery(CAN_frame_t frame) {}  // Not used on CAN-FD battery, j
 String inString = "";
 CANFDMessage EGMP_57F;
 CANFDMessage EGMP_2A1;
+CANFDMessage EGMP_2F0;
 CANFDMessage EGMP_200;
 CANFDMessage EGMP_523;
 CANFDMessage EGMP_524;
@@ -467,64 +468,64 @@ void send_can_battery() {
     }
   }
 
-  // // Send 10ms CAN Message
-  // if (currentMillis - previousMillis10ms >= INTERVAL_10_MS) {
-  //   // Check if sending of CAN messages has been delayed too much.
-  //   if ((currentMillis - previousMillis10ms >= INTERVAL_10_MS_DELAYED) && (currentMillis > BOOTUP_TIME)) {
-  //     set_event(EVENT_CAN_OVERRUN, (currentMillis - previousMillis10ms));
-  //   }
-  //   previousMillis10ms = currentMillis;
+  // Send 10ms CAN Message
+  if (currentMillis - previousMillis10ms >= INTERVAL_10_MS) {
+    // Check if sending of CAN messages has been delayed too much.
+    if ((currentMillis - previousMillis10ms >= INTERVAL_10_MS_DELAYED) && (currentMillis > BOOTUP_TIME)) {
+      set_event(EVENT_CAN_OVERRUN, (currentMillis - previousMillis10ms));
+    }
+    previousMillis10ms = currentMillis;
 
-  //   // switch (counter_200) {
-  //   //   case 0:
-  //   //     KIA_HYUNDAI_200.data.u8[5] = 0x17;
-  //   //     ++counter_200;
-  //   //     break;
-  //   //   case 1:
-  //   //     KIA_HYUNDAI_200.data.u8[5] = 0x57;
-  //   //     ++counter_200;
-  //   //     break;
-  //   //   case 2:
-  //   //     KIA_HYUNDAI_200.data.u8[5] = 0x97;
-  //   //     ++counter_200;
-  //   //     break;
-  //   //   case 3:
-  //   //     KIA_HYUNDAI_200.data.u8[5] = 0xD7;
-  //   //     if (startedUp) {
-  //   //       ++counter_200;
-  //   //     } else {
-  //   //       counter_200 = 0;
-  //   //     }
-  //   //     break;
-  //   //   case 4:
-  //   //     KIA_HYUNDAI_200.data.u8[3] = 0x10;
-  //   //     KIA_HYUNDAI_200.data.u8[5] = 0xFF;
-  //   //     ++counter_200;
-  //   //     break;
-  //   //   case 5:
-  //   //     KIA_HYUNDAI_200.data.u8[5] = 0x3B;
-  //   //     ++counter_200;
-  //   //     break;
-  //   //   case 6:
-  //   //     KIA_HYUNDAI_200.data.u8[5] = 0x7B;
-  //   //     ++counter_200;
-  //   //     break;
-  //   //   case 7:
-  //   //     KIA_HYUNDAI_200.data.u8[5] = 0xBB;
-  //   //     ++counter_200;
-  //   //     break;
-  //   //   case 8:
-  //   //     KIA_HYUNDAI_200.data.u8[5] = 0xFB;
-  //   //     counter_200 = 5;
-  //   //     break;
-  //   // }
+    // switch (counter_200) {
+    //   case 0:
+    //     KIA_HYUNDAI_200.data.u8[5] = 0x17;
+    //     ++counter_200;
+    //     break;
+    //   case 1:
+    //     KIA_HYUNDAI_200.data.u8[5] = 0x57;
+    //     ++counter_200;
+    //     break;
+    //   case 2:
+    //     KIA_HYUNDAI_200.data.u8[5] = 0x97;
+    //     ++counter_200;
+    //     break;
+    //   case 3:
+    //     KIA_HYUNDAI_200.data.u8[5] = 0xD7;
+    //     if (startedUp) {
+    //       ++counter_200;
+    //     } else {
+    //       counter_200 = 0;
+    //     }
+    //     break;
+    //   case 4:
+    //     KIA_HYUNDAI_200.data.u8[3] = 0x10;
+    //     KIA_HYUNDAI_200.data.u8[5] = 0xFF;
+    //     ++counter_200;
+    //     break;
+    //   case 5:
+    //     KIA_HYUNDAI_200.data.u8[5] = 0x3B;
+    //     ++counter_200;
+    //     break;
+    //   case 6:
+    //     KIA_HYUNDAI_200.data.u8[5] = 0x7B;
+    //     ++counter_200;
+    //     break;
+    //   case 7:
+    //     KIA_HYUNDAI_200.data.u8[5] = 0xBB;
+    //     ++counter_200;
+    //     break;
+    //   case 8:
+    //     KIA_HYUNDAI_200.data.u8[5] = 0xFB;
+    //     counter_200 = 5;
+    //     break;
+    // }
 
-  //   sendCanFd(EGMP_200);
+    sendCanFd(EGMP_200);
 
-  //   sendCanFd(EGMP_523);
+    sendCanFd(EGMP_2A1);
 
-  //   sendCanFd(EGMP_524);
-  // }
+    sendCanFd(EGMP_2F0);
+  }
 }
 
 void setup_battery(void) {  // Performs one time setup at startup
@@ -567,19 +568,27 @@ void setup_battery(void) {  // Performs one time setup at startup
   EGMP_2A1.id = 0x2A1;
   EGMP_2A1.ext = false;
   EGMP_2A1.len = 8;
-  uint8_t dataEGMP_2A1[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
+  uint8_t dataEGMP_2A1[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0xFF, 0x02};
   memcpy(EGMP_2A1.data, dataEGMP_2A1, sizeof(dataEGMP_2A1));
 
   EGMP_200.id = 0x200;
   EGMP_200.ext = false;
   EGMP_200.len = 8;
-  uint8_t dataEGMP_200[8] = {0x00, 0x80, 0xD8, 0x04, 0x00, 0x17, 0xD0, 0x00};
+  // uint8_t dataEGMP_200[8] = {0x00, 0x80, 0xD8, 0x04, 0x00, 0x17, 0xD0, 0x00};
+  uint8_t dataEGMP_200[8] = {0x00, 0x00, 0x00, 0x00, 0x80, 0x30, 0x00, 0x00};
   memcpy(EGMP_200.data, dataEGMP_200, sizeof(dataEGMP_200));
+
+  EGMP_2F0.id = 0x2F0;
+  EGMP_2F0.ext = false;
+  EGMP_2F0.len = 8;
+  uint8_t dataEGMP_2F0[8] = {0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x40, 0x00};
+  memcpy(EGMP_2F0.data, dataEGMP_2F0, sizeof(dataEGMP_2F0));
 
   EGMP_523.id = 0x523;
   EGMP_523.ext = false;
   EGMP_523.len = 8;
-  uint8_t dataEGMP_523[8] = {0x08, 0x38, 0x36, 0x36, 0x33, 0x34, 0x00, 0x01};
+  // uint8_t dataEGMP_523[8] = {0x08, 0x38, 0x36, 0x36, 0x33, 0x34, 0x00, 0x01};
+  uint8_t dataEGMP_523[8] = {0x60, 0x00, 0x60, 0x00, 0x00, 0x00, 0x00, 0x00};
   memcpy(EGMP_523.data, dataEGMP_523, sizeof(dataEGMP_523));
 
   EGMP_524.id = 0x524;
