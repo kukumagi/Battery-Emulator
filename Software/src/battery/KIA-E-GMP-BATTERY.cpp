@@ -468,64 +468,64 @@ void send_can_battery() {
     }
   }
 
-  // Send 10ms CAN Message
-  if (currentMillis - previousMillis10ms >= INTERVAL_10_MS) {
-    // Check if sending of CAN messages has been delayed too much.
-    if ((currentMillis - previousMillis10ms >= INTERVAL_10_MS_DELAYED) && (currentMillis > BOOTUP_TIME)) {
-      set_event(EVENT_CAN_OVERRUN, (currentMillis - previousMillis10ms));
-    }
-    previousMillis10ms = currentMillis;
+  // // Send 10ms CAN Message
+  // if (currentMillis - previousMillis10ms >= INTERVAL_10_MS) {
+  //   // Check if sending of CAN messages has been delayed too much.
+  //   if ((currentMillis - previousMillis10ms >= INTERVAL_10_MS_DELAYED) && (currentMillis > BOOTUP_TIME)) {
+  //     set_event(EVENT_CAN_OVERRUN, (currentMillis - previousMillis10ms));
+  //   }
+  //   previousMillis10ms = currentMillis;
 
-    // switch (counter_200) {
-    //   case 0:
-    //     KIA_HYUNDAI_200.data.u8[5] = 0x17;
-    //     ++counter_200;
-    //     break;
-    //   case 1:
-    //     KIA_HYUNDAI_200.data.u8[5] = 0x57;
-    //     ++counter_200;
-    //     break;
-    //   case 2:
-    //     KIA_HYUNDAI_200.data.u8[5] = 0x97;
-    //     ++counter_200;
-    //     break;
-    //   case 3:
-    //     KIA_HYUNDAI_200.data.u8[5] = 0xD7;
-    //     if (startedUp) {
-    //       ++counter_200;
-    //     } else {
-    //       counter_200 = 0;
-    //     }
-    //     break;
-    //   case 4:
-    //     KIA_HYUNDAI_200.data.u8[3] = 0x10;
-    //     KIA_HYUNDAI_200.data.u8[5] = 0xFF;
-    //     ++counter_200;
-    //     break;
-    //   case 5:
-    //     KIA_HYUNDAI_200.data.u8[5] = 0x3B;
-    //     ++counter_200;
-    //     break;
-    //   case 6:
-    //     KIA_HYUNDAI_200.data.u8[5] = 0x7B;
-    //     ++counter_200;
-    //     break;
-    //   case 7:
-    //     KIA_HYUNDAI_200.data.u8[5] = 0xBB;
-    //     ++counter_200;
-    //     break;
-    //   case 8:
-    //     KIA_HYUNDAI_200.data.u8[5] = 0xFB;
-    //     counter_200 = 5;
-    //     break;
-    // }
+  //   // switch (counter_200) {
+  //   //   case 0:
+  //   //     KIA_HYUNDAI_200.data.u8[5] = 0x17;
+  //   //     ++counter_200;
+  //   //     break;
+  //   //   case 1:
+  //   //     KIA_HYUNDAI_200.data.u8[5] = 0x57;
+  //   //     ++counter_200;
+  //   //     break;
+  //   //   case 2:
+  //   //     KIA_HYUNDAI_200.data.u8[5] = 0x97;
+  //   //     ++counter_200;
+  //   //     break;
+  //   //   case 3:
+  //   //     KIA_HYUNDAI_200.data.u8[5] = 0xD7;
+  //   //     if (startedUp) {
+  //   //       ++counter_200;
+  //   //     } else {
+  //   //       counter_200 = 0;
+  //   //     }
+  //   //     break;
+  //   //   case 4:
+  //   //     KIA_HYUNDAI_200.data.u8[3] = 0x10;
+  //   //     KIA_HYUNDAI_200.data.u8[5] = 0xFF;
+  //   //     ++counter_200;
+  //   //     break;
+  //   //   case 5:
+  //   //     KIA_HYUNDAI_200.data.u8[5] = 0x3B;
+  //   //     ++counter_200;
+  //   //     break;
+  //   //   case 6:
+  //   //     KIA_HYUNDAI_200.data.u8[5] = 0x7B;
+  //   //     ++counter_200;
+  //   //     break;
+  //   //   case 7:
+  //   //     KIA_HYUNDAI_200.data.u8[5] = 0xBB;
+  //   //     ++counter_200;
+  //   //     break;
+  //   //   case 8:
+  //   //     KIA_HYUNDAI_200.data.u8[5] = 0xFB;
+  //   //     counter_200 = 5;
+  //   //     break;
+  //   // }
 
-    sendCanFd(EGMP_200);
+  //   sendCanFd(EGMP_200);
 
-    sendCanFd(EGMP_2A1);
+  //   sendCanFd(EGMP_2A1);
 
-    sendCanFd(EGMP_2F0);
-  }
+  //   sendCanFd(EGMP_2F0);
+  // }
 }
 
 void setup_battery(void) {  // Performs one time setup at startup
