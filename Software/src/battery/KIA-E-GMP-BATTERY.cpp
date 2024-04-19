@@ -251,7 +251,7 @@ void receive_canfd_battery(CANFDMessage frame) {
   
   switch (frame.id) {
     case 0x7EC:
-      printFrame(frame);
+      // printFrame(frame);
       switch (frame.data[0]) {
         case 0x10:  //"PID Header"
           // Serial.println ("Send ack");
