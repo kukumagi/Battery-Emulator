@@ -9,11 +9,22 @@
 
 //----------------------------------------------------------------------------------------------------------------------
 
+
 #include "ACAN2517FDSettings.h"
 #include "ACANFDBuffer.h"
 #include "CANMessage.h"
 #include "ACAN2517FDFilters.h"
 #include <SPI.h>
+
+//----------------------------------------------------------------------------------------------------------------------
+//   Settings
+//----------------------------------------------------------------------------------------------------------------------
+//
+// Enable this if you want to disable the MCP2517FD compatability mode. This can slightly increase performance when
+// running on the MCP2518FD but you risk hitting issues mentioned in the MCP2517FD errata-sheet when using this option
+// on the MCP2517FD.
+//
+#define DISABLEMCP2517FDCOMPAT
 
 //----------------------------------------------------------------------------------------------------------------------
 //   ACAN2517FD class
@@ -103,25 +114,27 @@ class ACAN2517FD {
   public: uint32_t diagInfos (const int inIndex = 1) ;
 
 //······················································································································
-//    Operation Mode
+//    Current MCP2517FD Operation Mode
 //······················································································································
 
-  public: ACAN2517FDSettings::OperationMode currentOperationMode (void) ;
+  public: typedef enum : uint8_t {
+    NormalFD = 0,
+    Sleep = 1,
+    InternalLoopBack = 2,
+    ListenOnly = 3,
+    Configuration = 4,
+    ExternalLoopBack = 5,
+    Normal20B = 6,
+    RestrictedOperation = 7
+  } OperationMode ;
 
-  public: void setOperationMode (const ACAN2517FDSettings::OperationMode inMode) ;
+  public: OperationMode currentOperationMode (void) ;
 
 //······················································································································
 //    Recovery from Restricted Operation Mode
 //······················································································································
 
   public: bool recoverFromRestrictedOperationMode (void) ;
-
-//······················································································································
-//    Sleep Mode to Configuration Mode
-// (returns true if MCP2517FD was in sleep mode)
-//······················································································································
-
-  public: bool performSleepModeToConfigurationMode (void) ;
 
 //······················································································································
 //    Private properties
@@ -324,18 +337,6 @@ class ACAN2517FD {
   #endif
 
 //······················································································································
-//    GPIO
-//······················································································································
-
-  public: void gpioSetMode (const uint8_t inPin, const uint8_t inMode) ;
-
-  public: void gpioWrite (const uint8_t inPin, const uint8_t inLevel) ;
-
-  public: bool gpioRead (const uint8_t inPin) ;
-
-  public: void configureGPIO0AsXSTBY (void) ;
-
-//······················································································································
 //    No copy
 //······················································································································
 
@@ -347,4 +348,3 @@ class ACAN2517FD {
 } ;
 
 //----------------------------------------------------------------------------------------------------------------------
-
