@@ -361,8 +361,8 @@ void init_CAN() {
 #endif
   SPI.begin(MCP2517_SCK, MCP2517_SDO, MCP2517_SDI);
   ACAN2517FDSettings settings(ACAN2517FDSettings::OSC_40MHz, 500 * 1000,
-                              DataBitRateFactor::x4);      // Arbitration bit rate: 500 kbit/s, data bit rate: 2 Mbit/s
-  settings.mRequestedMode = ACAN2517FDSettings::NormalFD;  // ListenOnly / Normal20B / NormalFD
+                              DataBitRateFactor::x1);      // Arbitration bit rate: 500 kbit/s, data bit rate: 2 Mbit/s
+  settings.mRequestedMode = ACAN2517FDSettings::Normal20B;  // ListenOnly / Normal20B / NormalFD
   const uint32_t errorCode = canfd.begin(settings, [] { canfd.isr(); });
   if (errorCode == 0) {
 #ifdef DEBUG_VIA_USB
