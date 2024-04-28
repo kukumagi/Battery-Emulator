@@ -359,13 +359,20 @@ void init_CAN() {
 #ifdef DEBUG_VIA_USB
   Serial.println("CAN FD add-on (ESP32+MCP2517) selected");
 #endif
-  SPI.begin(MCP2517_SCK, MCP2517_SDO, MCP2517_SDI);
+  // SPI.setFrequency(40000000);
+  SPI.begin () ;
+
   ACAN2517FDSettings settings(ACAN2517FDSettings::OSC_40MHz, 500 * 1000,
                               DataBitRateFactor::x4);      // Arbitration bit rate: 500 kbit/s, data bit rate: 2 Mbit/s
   settings.mRequestedMode = ACAN2517FDSettings::NormalFD;  // ListenOnly / Normal20B / NormalFD
+  // settings.mRequestedMode = ACAN2517FDSettings::InternalLoopBack;  // ListenOnly / Normal20B / NormalFD
+  #if MCP2517_INT == 255
+  const uint32_t errorCode = canfd.begin(settings, NULL);
+  #else
   const uint32_t errorCode = canfd.begin(settings, [] { canfd.isr(); });
+  #endif
   if (errorCode == 0) {
-#ifdef DEBUG_VIA_USB
+// #ifdef DEBUG_VIA_USB
     Serial.print("Bit Rate prescaler: ");
     Serial.println(settings.mBitRatePrescaler);
     Serial.print("Arbitration Phase segment 1: ");
@@ -382,12 +389,12 @@ void init_CAN() {
     Serial.print("Arbitration Sample point: ");
     Serial.print(settings.arbitrationSamplePointFromBitStart());
     Serial.println("%");
-#endif
+// #endif
   } else {
-#ifdef DEBUG_VIA_USB
+// #ifdef DEBUG_VIA_USB
     Serial.print("CAN-FD Configuration error 0x");
     Serial.println(errorCode, HEX);
-#endif
+// #endif
     set_event(EVENT_CANFD_INIT_FAILURE, (uint8_t)errorCode);
   }
 #endif
@@ -496,10 +503,15 @@ void init_battery() {
 #ifdef CAN_FD
 // Functions
 void receive_canfd() {  // This section checks if we have a complete CAN-FD message incoming
+  int i = 0;
   CANFDMessage frame;
-  if (canfd.available()) {
+  while (canfd.available()) {
     canfd.receive(frame);
     receive_canfd_battery(frame);
+    i++;
+    if(i>10){
+      break;
+    }
   }
 }
 #endif
