@@ -34,16 +34,16 @@
 #define MCP2515_INT 35   // INT output of MCP2515 |  | Pin 35 is input only, without pullup/down resistors
 
 // CAN_FD defines
-#define MCP2517_SCK 12  // SCK input of MCP2517
-#define MCP2517_SDI 5   // SDI input of MCP2517
-#define MCP2517_SDO 34  // SDO output of MCP2517
-#define MCP2517_CS 18   // CS input of MCP2517
-#define MCP2517_INT 35  // INT output of MCP2517
-// #define MCP2517_SCK 18  // SCK input of MCP2517
-// #define MCP2517_SDI 23   // SDI input of MCP2517
-// #define MCP2517_SDO 19  // SDO output of MCP2517
-// #define MCP2517_CS 5   // CS input of MCP2517
+// #define MCP2517_SCK 12  // SCK input of MCP2517
+// #define MCP2517_SDI 5   // SDI input of MCP2517
+// #define MCP2517_SDO 34  // SDO output of MCP2517
+// #define MCP2517_CS 18   // CS input of MCP2517
 // #define MCP2517_INT 35  // INT output of MCP2517
+#define MCP2517_SCK 18  // SCK input of MCP2517
+#define MCP2517_SDI 23   // SDI input of MCP2517
+#define MCP2517_SDO 19  // SDO output of MCP2517
+#define MCP2517_CS 5   // CS input of MCP2517
+#define MCP2517_INT 35  // INT output of MCP2517
 
 // Contactor handling
 #define POSITIVE_CONTACTOR_PIN 32

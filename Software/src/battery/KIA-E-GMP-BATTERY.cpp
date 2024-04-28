@@ -211,7 +211,7 @@ void sendCanFd(CANFDMessage frame) {
   const bool ok = canfd.tryToSend(frame);
 
   if (ok) {
-    Serial.println ("Send ok") ;
+    // Serial.println ("Send ok") ;
   }else{
     Serial.println ("Send failure") ;
   }
@@ -248,11 +248,11 @@ void receive_canfd_battery(CANFDMessage frame) {
   default:
     break;
   }
-    printFrame(frame);
+    // printFrame(frame);
   
   switch (frame.id) {
     case 0x7EC:
-      // printFrame(frame);
+      printFrame(frame);
       switch (frame.data[0]) {
         case 0x10:  //"PID Header"
           // Serial.println ("Send ack");
