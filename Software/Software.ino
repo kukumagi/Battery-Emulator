@@ -191,7 +191,7 @@ void core_loop(void* task_time_us) {
     START_TIME_MEASUREMENT(all);
     START_TIME_MEASUREMENT(comm);
     // Input
-    receive_can();  // Receive CAN messages. Runs as fast as possible
+    // receive_can();  // Receive CAN messages. Runs as fast as possible
 #ifdef CAN_FD
     receive_canfd();  // Receive CAN-FD messages. Runs as fast as possible
 #endif
@@ -213,7 +213,7 @@ void core_loop(void* task_time_us) {
     // Process
     if (millis() - previousMillis10ms >= INTERVAL_10_MS) {
       previousMillis10ms = millis();
-      led_exe();
+      // led_exe();
 #ifdef CONTACTOR_CONTROL
       handle_contactors();  // Take care of startup precharge/contactor closing
 #endif
@@ -264,7 +264,7 @@ void core_loop(void* task_time_us) {
       datalayer.system.status.core_task_10s_max_us = 0;
     }
 #endif
-    vTaskDelayUntil(&xLastWakeTime, xFrequency);
+    // vTaskDelayUntil(&xLastWakeTime, xFrequency);
   }
 }
 
@@ -334,38 +334,13 @@ void init_stored_settings() {
 }
 
 void init_CAN() {
-  // CAN pins
-  pinMode(CAN_SE_PIN, OUTPUT);
-  digitalWrite(CAN_SE_PIN, LOW);
-  CAN_cfg.speed = CAN_SPEED_500KBPS;
-  CAN_cfg.tx_pin_id = GPIO_NUM_27;
-  CAN_cfg.rx_pin_id = GPIO_NUM_26;
-  CAN_cfg.rx_queue = xQueueCreate(rx_queue_size, sizeof(CAN_frame_t));
-  // Init CAN Module
-  ESP32Can.CANInit();
-
-#ifdef DUAL_CAN
-#ifdef DEBUG_VIA_USB
-  Serial.println("Dual CAN Bus (ESP32+MCP2515) selected");
-#endif
-  gBuffer.initWithSize(25);
-  SPI.begin(MCP2515_SCK, MCP2515_MISO, MCP2515_MOSI);
-  ACAN2515Settings settings(QUARTZ_FREQUENCY, 500UL * 1000UL);  // CAN bit rate 500 kb/s
-  settings.mRequestedMode = ACAN2515Settings::NormalMode;
-  can.begin(settings, [] { can.isr(); });
-#endif
-
-#ifdef CAN_FD
-#ifdef DEBUG_VIA_USB
-  Serial.println("CAN FD add-on (ESP32+MCP2517) selected");
-#endif
-  // SPI.setFrequency(40000000);
-  SPI.begin () ;
+  SPI.begin(MCP2517_SCK, MCP2517_SDO, MCP2517_SDI) ;
 
   ACAN2517FDSettings settings(ACAN2517FDSettings::OSC_40MHz, 500 * 1000,
                               DataBitRateFactor::x4);      // Arbitration bit rate: 500 kbit/s, data bit rate: 2 Mbit/s
   settings.mRequestedMode = ACAN2517FDSettings::NormalFD;  // ListenOnly / Normal20B / NormalFD
   // settings.mRequestedMode = ACAN2517FDSettings::InternalLoopBack;  // ListenOnly / Normal20B / NormalFD
+  // settings.mRequestedMode = ACAN2517FDSettings::ExternalLoopBack;  // ListenOnly / Normal20B / NormalFD
   #if MCP2517_INT == 255
   const uint32_t errorCode = canfd.begin(settings, NULL);
   #else
@@ -397,6 +372,33 @@ void init_CAN() {
 // #endif
     set_event(EVENT_CANFD_INIT_FAILURE, (uint8_t)errorCode);
   }
+
+  // // CAN pins
+  // pinMode(CAN_SE_PIN, OUTPUT);
+  // digitalWrite(CAN_SE_PIN, LOW);
+  // CAN_cfg.speed = CAN_SPEED_500KBPS;
+  // CAN_cfg.tx_pin_id = GPIO_NUM_27;
+  // CAN_cfg.rx_pin_id = GPIO_NUM_26;
+  // CAN_cfg.rx_queue = xQueueCreate(rx_queue_size, sizeof(CAN_frame_t));
+  // // Init CAN Module
+  // ESP32Can.CANInit();
+
+#ifdef DUAL_CAN
+#ifdef DEBUG_VIA_USB
+  Serial.println("Dual CAN Bus (ESP32+MCP2515) selected");
+#endif
+  gBuffer.initWithSize(25);
+  SPI.begin(MCP2515_SCK, MCP2515_MISO, MCP2515_MOSI);
+  ACAN2515Settings settings(QUARTZ_FREQUENCY, 500UL * 1000UL);  // CAN bit rate 500 kb/s
+  settings.mRequestedMode = ACAN2515Settings::NormalMode;
+  can.begin(settings, [] { can.isr(); });
+#endif
+
+#ifdef CAN_FD
+#ifdef DEBUG_VIA_USB
+  Serial.println("CAN FD add-on (ESP32+MCP2517) selected");
+#endif
+  
 #endif
 }
 
@@ -504,14 +506,14 @@ void init_battery() {
 // Functions
 void receive_canfd() {  // This section checks if we have a complete CAN-FD message incoming
   int i = 0;
+  #if MCP2517_INT == 255
+  canfd.poll () ; 
+  #endif
   CANFDMessage frame;
-  while (canfd.available()) {
+  if (canfd.available()) {
     canfd.receive(frame);
+    
     receive_canfd_battery(frame);
-    i++;
-    if(i>10){
-      break;
-    }
   }
 }
 #endif
@@ -569,7 +571,7 @@ void send_can() {
   send_can_sma_tripower();
 #endif
 #ifdef SOFAR_CAN
-  send_can_sofar();
+  // send_can_sofar();
 #endif
   // Battery
   send_can_battery();

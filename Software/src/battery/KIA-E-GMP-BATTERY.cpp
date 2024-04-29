@@ -213,6 +213,7 @@ void sendCanFd(CANFDMessage frame) {
   if (ok) {
   }else{
     Serial.println ("Send failure") ;
+    canfd.poll();
   }
 }
 // check for uds packages https://www.csselectronics.com/pages/can-dbc-file-database-intro
@@ -248,7 +249,7 @@ void receive_canfd_battery(CANFDMessage frame) {
     printFrame(frame);
     break;
   }
-    // printFrame(frame);
+    printFrame(frame);
   
   switch (frame.id) {
     case 0x7EC:
