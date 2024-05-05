@@ -195,6 +195,38 @@ void update_values_battery() {  //This function maps all the values fetched via 
 
 void receive_canfd_battery(CANFDMessage frame) {
   CANstillAlive = 12;
+  // Frame ID-s that battery transmits. For debugging and development.
+  // switch (frame.id)
+  // {
+  // case 0x7EC:
+  // case 0x360:
+  // case 0x3BA:
+  // case 0x325:
+  // case 0x330:
+  // case 0x215:
+  // case 0x235:
+  // case 0x2FA:
+  // case 0x21A:
+  // case 0x275:
+  // case 0x150:
+  // case 0x1F5:
+  // case 0x335:
+  // case 0x25A:
+  // case 0x365:
+  // case 0x055:
+  // case 0x245:
+  // case 0x3F5:
+  // // case 0x:
+  // // case 0x:
+  // // case 0x:
+  //   /* code */
+  //   break;
+  
+  // default:
+  //   printFrame(frame);
+  //   break;
+  // }
+
   switch (frame.id) {
     case 0x7EC:
       // printFrame(frame);
