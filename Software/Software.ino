@@ -392,6 +392,7 @@ void init_CAN() {
 #endif
     set_event(EVENT_CANFD_INIT_FAILURE, (uint8_t)errorCode);
   }
+  canfd.poll();
 #endif
 }
 
