@@ -943,7 +943,10 @@ void transmit_can(CAN_frame* tx_frame, int interface) {
       for (uint8_t i = 0; i < MCP2518Frame.len; i++) {
         MCP2518Frame.data[i] = tx_frame->data.u8[i];
       }
-      canfd.tryToSend(MCP2518Frame);
+      if (!canfd.tryToSend(MCP2518Frame)) {
+        Serial.printLn("Failed to send canfd frame");
+        Serial.printLn(MCP2518Frame.id);
+      }
 #else   // Interface not compiled, and settings try to use it
       set_event(EVENT_INTERFACE_MISSING, interface);
 #endif  //CAN_FD
