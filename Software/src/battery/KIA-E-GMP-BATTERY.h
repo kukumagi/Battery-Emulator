@@ -1,8 +1,10 @@
 #ifndef KIA_E_GMP_BATTERY_H
 #define KIA_E_GMP_BATTERY_H
+#include "KIA-E-GMP-TX-TABLE.h"
 #include "UdsCanBattery.h"
 
 extern bool user_selected_use_estimated_SOC;
+extern uint16_t user_selected_egmp_frame_groups;
 
 class KiaEGmpBattery : public UdsCanBattery {
  public:
@@ -23,6 +25,12 @@ class KiaEGmpBattery : public UdsCanBattery {
   String get_uds_info_html() override;
   const char* get_dtc_json_filename() override { return "kia_egmp_dtc.json"; }
 
+  /* Upper bound on emulated frames per transmit_can() call, so a stalled main
+   * loop cannot dump the whole table into the 32-frame CAN-FD TX FIFO at once. */
+  static constexpr uint8_t MAX_TX_FRAMES_PER_TICK = 12;
+  /* Bitmask with every EgmpTxGroup enabled (default of the EGMPGROUPS setting). */
+  static constexpr uint16_t ALL_FRAME_GROUPS = (1u << EGMP_GROUP_COUNT) - 1;
+
  protected:
   // Called by the UDS superclass for each successful PID query response.
   uint16_t handle_pid(uint16_t pid, uint32_t value, const uint8_t* data, uint16_t length) override;
@@ -34,14 +42,16 @@ class KiaEGmpBattery : public UdsCanBattery {
   uint16_t selectSOC(uint16_t SOC_low, uint16_t SOC_high);
   uint16_t estimateSOCFromCell(uint16_t cellVoltage);
   uint8_t calculateCRC(CAN_frame rx_frame, uint8_t length, uint8_t initial_value);
-    uint16_t calculate_transmit_checksum(const CAN_frame& frame);
-    uint16_t transmit_checksum_xor(uint16_t can_id) const;
-    bool has_transmit_counter(uint16_t can_id) const;
-    void transmit_startup_message(uint8_t message_index);
-    void transmit_message(uint16_t can_id, uint32_t message_count);
+  uint16_t calculate_transmit_checksum(const CAN_frame& frame);
+  uint16_t transmit_checksum_xor(uint16_t can_id) const;
+  bool has_transmit_counter(uint16_t can_id) const;
+  void transmit_startup_message(uint8_t message_index);
+  void transmit_message(uint16_t can_id, uint32_t message_count);
   void set_cell_voltages(uint8_t reading, uint8_t cellNumber);
   void process_cell_voltage_group(const uint8_t* data, uint8_t baseCell);
   void set_voltage_minmax_limits();
+  void transmit_emulated_frames(unsigned long currentMillis);
+  void suppress_emulated_id(uint16_t can_id);
 
   static const int MAX_PACK_VOLTAGE_DV = 8064;  //5000 = 500.0V
   static const int MIN_PACK_VOLTAGE_DV = 4320;
@@ -76,7 +86,21 @@ class KiaEGmpBattery : public UdsCanBattery {
   uint8_t CellVminNo = 0;
   uint8_t batteryManagementMode = 0;
   uint8_t BMS_ign = 0xff;
-  uint8_t batteryRelay = 0;
+  uint8_t batteryRelay = 0;  // PID 0x0101 relay status byte, changes when the BMS closes/opens
+  uint8_t batteryRelay_previous = 0;
+  unsigned long batteryRelay_last_change_ms = 0;
+  uint8_t batteryRelay_changes = 0;
+  uint16_t inverterVoltage_max = 0;  // highest inverter-side voltage seen since boot (0.1 V)
+
+  // Raw PID 0x0101 reply, kept to find out which bytes move when the BMS closes/opens its relays.
+  // The Kia/Hyundai 64kWh layout (relay byte, inverter voltage) did not match on E-GMP.
+  static const uint8_t PID101_MAX_LEN = 64;
+  uint8_t pid101_raw[PID101_MAX_LEN] = {};
+  uint16_t pid101_len = 0;
+  uint32_t pid101_replies = 0;
+  uint16_t pid101_change_count[PID101_MAX_LEN] = {};
+  unsigned long pid101_last_change_ms[PID101_MAX_LEN] = {};
+  void track_pid101(const uint8_t* data, uint16_t length);
   uint8_t waterleakageSensor = 164;
   bool startedUp = false;
   int8_t temperature_water_inlet = 20;
@@ -102,15 +126,15 @@ class KiaEGmpBattery : public UdsCanBattery {
       3495, 3487, 3478, 3470, 3461, 3452, 3444, 3435, 3427, 3418, 3410, 3401, 3392, 3384, 3375, 3367, 3358,
       3350, 3338, 3325, 3313, 3299, 3285, 3271, 3255, 3239, 3221, 3202, 3180, 3156, 3127, 3090, 3000};
   /* These messages are needed for contactor closing */
-    unsigned long lastTransmitMillis = 0;
-    uint32_t transmit10msCount = 0;
-    bool transmitScheduleStarted = false;
-    unsigned long startupStartMillis = 0;
-    uint8_t startupMessageIndex = 0;
-    bool startupSequenceActive = false;
-    bool startupSequenceComplete = false;
-    bool startupSequenceRequested = false;
-    uint8_t startupMessageDelays[63] = {0,   0,   5,   10,  10,  15,  19,  19,  20,  20,  25,  30,  30,  35,  40,  40,
+  unsigned long lastTransmitMillis = 0;
+  uint32_t transmit10msCount = 0;
+  bool transmitScheduleStarted = false;
+  unsigned long startupStartMillis = 0;
+  uint8_t startupMessageIndex = 0;
+  bool startupSequenceActive = false;
+  bool startupSequenceComplete = false;
+  bool startupSequenceRequested = false;
+  uint8_t startupMessageDelays[63] = {0,   0,   5,   10,  10,  15,  19,  19,  20,  20,  25,  30,  30,  35,  40,  40,
                                                                              45,  49,  49,  50,  50,  52,  53,  53,  54,  55,  60,  60,  65,  67,  67,  70,
                                                                              70, 75,  77,  77,  80,  80,  85,  90,  90,  95,  100, 100, 105, 110, 110, 115,
                                                                              119, 119, 120, 120, 125, 130, 130, 135, 140, 140, 145, 149, 149, 150, 150};
@@ -564,6 +588,20 @@ class KiaEGmpBattery : public UdsCanBattery {
       &message_41, &message_42, &message_43, &message_44, &message_45, &message_46, &message_47, &message_48,
       &message_49, &message_50, &message_51, &message_52, &message_53, &message_54, &message_55, &message_56,
       &message_57, &message_58, &message_59, &message_60, &message_61, &message_62, &message_63};
+
+  struct TxState {
+    unsigned long next_due_ms;
+    uint8_t counter;
+    bool suppressed;
+  };
+  TxState tx_state[EGMP_TX_TABLE_SIZE] = {};
+  bool tx_schedule_started = false;
+  uint16_t tx_scan_start = 0;
+  uint32_t tx_frames_sent = 0;
+
+  uint16_t emulated_frames_per_second = 0;
+  uint16_t emulated_frames_sent_in_window = 0;
+  unsigned long emulated_frames_window_start = 0;
 
   static const int POLL_GROUP_1 = 0x0101;
   static const int POLL_GROUP_2 = 0x0102;  //Cellvoltages 1-32
