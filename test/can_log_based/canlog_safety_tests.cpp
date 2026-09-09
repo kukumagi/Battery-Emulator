@@ -7,6 +7,7 @@
 #include "../../Software/src/battery/BATTERIES.h"
 #include "../../Software/src/battery/CanBattery.h"
 #include "../../Software/src/battery/UdsCanBattery.h"
+#include "../../Software/src/devboard/utils/common_functions.h"
 #include "../../Software/src/devboard/utils/events.h"
 
 #include <fstream>
@@ -296,6 +297,53 @@ class NoCanErrorsTest : public CanLogTestFixture {
     EXPECT_GT(datalayer.battery.status.CAN_battery_still_alive, 0);
   }
 };
+
+TEST(EgmpCanLogTests, ParsesRecordedVehicleLogsAndMatchesChecksumAndCounterPattern) {
+  const std::vector<uint16_t> ids = {0x10A, 0x120, 0x19A, 0x2B5, 0x2C0, 0x2D5, 0x2E0, 0x2E5, 0x2EA,
+                                    0x30A, 0x320, 0x33A, 0x350, 0x3B5, 0x27A, 0x306, 0x308};
+  const std::filesystem::path root = std::filesystem::path(".dummy") / "logs";
+
+  std::map<uint16_t, std::vector<CAN_frame>> frames_by_id;
+  for (const auto& entry : fs::recursive_directory_iterator(root)) {
+    if (!entry.is_regular_file()) {
+      continue;
+    }
+    const auto ext = entry.path().extension().string();
+    if (ext != ".asc" && ext != ".csv") {
+      continue;
+    }
+    for (const auto& frame : parse_can_log_file(entry.path())) {
+      if (std::find(ids.begin(), ids.end(), frame.ID) != ids.end()) {
+        frames_by_id[frame.ID].push_back(frame);
+      }
+    }
+  }
+
+  for (const auto& id : ids) {
+    auto it = frames_by_id.find(id);
+    ASSERT_NE(it, frames_by_id.end()) << "missing log samples for 0x" << std::hex << id;
+    ASSERT_GT(it->second.size(), 0u) << "0x" << std::hex << id;
+
+    if (id == 0x306) {
+      continue;  // This log stream is replayed verbatim, not regenerated.
+    }
+
+    const auto expected_final_xor = (id == 0x27A) ? 0x3302 : 0x6E17;
+    for (size_t n = 0; n < it->second.size(); ++n) {
+      const auto& frame = it->second[n];
+      ASSERT_GE(frame.DLC, 3u) << "0x" << std::hex << id;
+      const uint16_t stored = static_cast<uint16_t>(frame.data.u8[0]) | (static_cast<uint16_t>(frame.data.u8[1]) << 8);
+      const uint16_t calculated = crc16_hyundai_canfd(frame.data.u8, frame.DLC, frame.ID, expected_final_xor);
+      EXPECT_EQ(stored, calculated) << "checksum mismatch on 0x" << std::hex << id << " frame " << std::dec << n;
+
+      if (n > 0) {
+        const uint8_t prev_counter = it->second[n - 1].data.u8[2];
+        EXPECT_EQ(static_cast<uint8_t>((frame.data.u8[2] - prev_counter) & 0xFF), 1u)
+            << "counter mismatch on 0x" << std::hex << id << " frame " << std::dec << n;
+      }
+    }
+  }
+}
 
 void RegisterCanLogTests() {
   // The logs should be named as follows:

@@ -172,6 +172,10 @@ void KiaEGmpBattery::request_startup_sequence() {
 
 void KiaEGmpBattery::transmit_startup_message(uint8_t message_index) {
   CAN_frame frame = *messages[message_index];
+  if (has_transmit_counter(frame.ID)) {
+    last_transmit_counter_valid[frame.ID] = true;
+    last_transmit_counter[frame.ID] = frame.data.u8[2];
+  }
   uint16_t checksum = calculate_transmit_checksum(frame);
   frame.data.u8[0] = static_cast<uint8_t>(checksum);
   frame.data.u8[1] = static_cast<uint8_t>(checksum >> 8);
@@ -230,7 +234,15 @@ void KiaEGmpBattery::transmit_message(uint16_t can_id, uint32_t message_count) {
 
   CAN_frame frame = *messages[selected_message];
   if (has_transmit_counter(frame.ID)) {
-    frame.data.u8[2] = static_cast<uint8_t>(frame.data.u8[2] + message_count);
+    uint8_t next_counter = frame.data.u8[2];
+    if (last_transmit_counter_valid[frame.ID]) {
+      next_counter = static_cast<uint8_t>(last_transmit_counter[frame.ID] + 1u);
+    } else {
+      next_counter = static_cast<uint8_t>(frame.data.u8[2]);
+      last_transmit_counter_valid[frame.ID] = true;
+    }
+    last_transmit_counter[frame.ID] = next_counter;
+    frame.data.u8[2] = next_counter;
   }
   uint16_t checksum = calculate_transmit_checksum(frame);
   frame.data.u8[0] = static_cast<uint8_t>(checksum);

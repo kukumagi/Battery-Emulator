@@ -174,6 +174,37 @@ TEST(KiaEGmpEmulationTests, SendsNothingUntilBmsIsSeen) {
   EXPECT_TRUE(get_transmitted_frames().empty());
 }
 
+TEST(KiaEGmpEmulationTests, StartupCounterContinuesIntoTheWorkingLoop) {
+  clear_transmitted_frames();
+  user_selected_egmp_frame_groups = KiaEGmpBattery::ALL_FRAME_GROUPS;
+  auto battery = new KiaEGmpBattery();
+  battery->setup();
+  set_millis64(1000);
+  battery->handle_incoming_can_frame(bms_frame(0x3BA));
+
+  uint8_t last_counter = 0;
+  bool seen_any_counter = false;
+  bool reset_after_startup = false;
+  for (uint32_t t = 0; t < 2000; t++) {
+    set_millis64(1000 + t);
+    battery->transmit_can(1000 + t);
+    for (const auto& frame : get_transmitted_frames()) {
+      if (frame.ID != 0x10A) {
+        continue;
+      }
+      const uint8_t counter = frame.data.u8[2];
+      if (seen_any_counter && counter < last_counter) {
+        reset_after_startup = true;
+      }
+      seen_any_counter = true;
+      last_counter = counter;
+    }
+  }
+
+  EXPECT_FALSE(reset_after_startup)
+      << "The 0x10A counter restarted from a smaller value after startup, which would break the working sequence";
+}
+
 TEST(KiaEGmpEmulationTests, EveryTableEntryIsSentAtItsPeriod) {
   const uint32_t duration = 3000;
   run_emulation(duration);

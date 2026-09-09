@@ -599,6 +599,12 @@ class KiaEGmpBattery : public UdsCanBattery {
   uint16_t tx_scan_start = 0;
   uint32_t tx_frames_sent = 0;
 
+  // The startup sequence reuses the same IDs as the steady-state loop. Keep the most recent
+  // counter byte per ID so the work-mode transmissions continue from the startup count instead
+  // of restarting at the nominal base value when the same ID reappears.
+  uint8_t last_transmit_counter[0x400] = {};
+  bool last_transmit_counter_valid[0x400] = {};
+
   uint16_t emulated_frames_per_second = 0;
   uint16_t emulated_frames_sent_in_window = 0;
   unsigned long emulated_frames_window_start = 0;
