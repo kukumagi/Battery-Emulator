@@ -378,14 +378,30 @@ String KiaEGmpBattery::get_uds_info_html() {
   content << "<h4>Cells: " << String(datalayer.battery.info.number_of_cells) << "</h4>"
               "<h4>SOC (BMS): " << String(SOC_BMS) << "</h4>"
               "<h4>SOC (Display): " << String(SOC_Display) << "</h4>"
+              "<h4>SOH: " << String(batterySOH / 10.0f, 1) << "%</h4>"
+              "<h4>Allowed charge power: " << String(allowedChargePower / 100.0f, 2) << " kW</h4>"
+              "<h4>Allowed discharge power: " << String(allowedDischargePower / 100.0f, 2) << " kW</h4>"
               "<h4>12V voltage: " << String(leadAcidBatteryVoltage / 10.0f, 1) << "</h4>"
-              "<h4>Waterleakage: " << String(waterleakageSensor)  << "</h4>"
-              "<h4>Temperature, water inlet: " << String(temperature_water_inlet)  << "</h4>"
-              "<h4>Batterymanagement mode: " << String(batteryManagementMode)  << "</h4>"
-              "<h4>Cumulative Charge Energy: " << String(cumulativeChargeEnergy)  << " Wh</h4>"
-              "<h4>Cumulative Discharge Energy: " << String(cumulativeDischargeEnergy)  << " Wh</h4>"
-              "<h4>Operation Time: " << String(opTime)  << " s</h4>"
-              "<h4>BMS ignition: " << String(BMS_ign)  << "</h4>";
+              "<h4>Inverter voltage: " << String(inverterVoltage) << " V</h4>"
+              "<h4>Waterleakage: " << String(waterleakageSensor) << "</h4>"
+              "<h4>Temperature, water inlet: " << String(temperature_water_inlet) << " &deg;C</h4>"
+              "<h4>Temperature, heater: " << String(heatertemp) << " &deg;C</h4>"
+              "<h4>Temp min: " << String(temperatureMin) << " &deg;C</h4>"
+              "<h4>Temp max: " << String(temperatureMax) << " &deg;C</h4>"
+              "<h4>Cell max voltage: " << String(CellVoltMax_mV) << " mV</h4>"
+              "<h4>Cell min voltage: " << String(CellVoltMin_mV) << " mV</h4>"
+              "<h4>Highest cell: no " << String(CellVmaxNo) << "</h4>"
+              "<h4>Lowest cell: no " << String(CellVminNo) << "</h4>"
+              "<h4>Batterymanagement mode: " << String(batteryManagementMode) << "</h4>"
+              "<h4>Cumulative Charge Energy: " << String(cumulativeChargeEnergy) << " Wh</h4>"
+              "<h4>Cumulative Discharge Energy: " << String(cumulativeDischargeEnergy) << " Wh</h4>"
+              "<h4>Operation Time: " << String(opTime) << " s</h4>"
+              "<h4>BMS ignition: " << String(BMS_ign) << "</h4>"
+              "<h4>Battery relay: " << String(batteryRelay) << "</h4>"
+              "<h4>Charging socket connected: " << String(charging_socket_connected) << "</h4>"
+              "<h4>Battery main relay status: " << String(battery_main_relay_status) << "</h4>"
+              "<h4>400V relay on/off request: " << String(relay_on_off_request) << "</h4>"
+              "<h4>400V relay status: " << String(relay_status) << "</h4>";
 
   return content;
 }
@@ -451,6 +467,14 @@ void KiaEGmpBattery::handle_incoming_can_frame(CAN_frame rx_frame) {
     case 0x3F5:
       datalayer.battery.status.CAN_battery_still_alive = CAN_STILL_ALIVE;
       break;
+    case 0x740:  // CHARGE_MGMT / charging and relay state bits from the Hyundai/Kia DBC
+      if (rx_frame.DLC >= 8) {
+        charging_socket_connected = (rx_frame.data.u8[7] >> 1) & 0x01;
+        battery_main_relay_status = (rx_frame.data.u8[7] >> 2) & 0x01;
+        relay_on_off_request = (rx_frame.data.u8[7] >> 4) & 0x01;
+        relay_status = (rx_frame.data.u8[7] >> 5) & 0x01;
+      }
+      break;
     case 0x7EC:
       //Handled in UDS Superclass
       break;
@@ -498,9 +522,12 @@ uint16_t KiaEGmpBattery::handle_pid(uint16_t pid, uint32_t value, const uint8_t*
       cumulativeDischargeEnergy2 = data[43] << 16 | data[44] << 8 | data[45]; //Flow over
 
       //Frame 27 (a8 01 03 f3 0f 00 02) data45-51
-      opTime = data[46] << 24 | data[47] << 16 | data[48] << 8 | data[49]; 
+      opTime = data[46] << 24 | data[47] << 16 | data[48] << 8 | data[49];
       BMS_ign = data[50];
-      inverterVoltage = ((data[51] << 8) + data[52]); //Flow over
+      // DBC mapping: BMS ignition and the adjacent relay-status byte are carried in the same status block.
+      // Keep the raw value available for the More Battery Info page without changing the existing inverter voltage decode.
+      batteryRelay = data[51];
+      inverterVoltage = ((data[51] << 8) + data[52]);  // Flow over
       //Frame 28 (c9 00 00 00 00 0b b8) data52-58
       break;
 case POLL_GROUP_2: //Cellvoltages (Cell 1-32)
