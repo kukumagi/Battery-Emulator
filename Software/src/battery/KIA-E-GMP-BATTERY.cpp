@@ -223,8 +223,38 @@ uint8_t KiaEGmpBattery::find_transmit_counter_index(uint16_t can_id) {
   return invalid_transmit_counter_index;
 }
 
+CAN_frame KiaEGmpBattery::build_startup_message(uint8_t message_index) {
+  CAN_frame frame = {};
+  frame.FD = true;
+  frame.ext_ID = false;
+  frame.DLC = 32;
+  frame.ID = startup_trigger_ids[message_index];
+
+  for (uint8_t index = 0; index < work_message_count; index++) {
+    if (work_messages[index].ID == frame.ID) {
+      frame = work_messages[index];
+      break;
+    }
+  }
+
+  const uint8_t counter_index = find_transmit_counter_index(frame.ID);
+  if (counter_index != invalid_transmit_counter_index) {
+    uint8_t next_counter = 0;
+    if (last_transmit_counter_valid[counter_index]) {
+      next_counter = static_cast<uint8_t>(last_transmit_counter[counter_index] + 1u);
+    }
+    last_transmit_counter_valid[counter_index] = true;
+    last_transmit_counter[counter_index] = next_counter;
+    frame.data.u8[2] = next_counter;
+  }
+
+  frame.data.u8[0] = 0;
+  frame.data.u8[1] = 0;
+  return frame;
+}
+
 void KiaEGmpBattery::transmit_startup_message(uint8_t message_index) {
-  CAN_frame frame = *messages[message_index];
+  CAN_frame frame = build_startup_message(message_index);
   const uint8_t counter_index = find_transmit_counter_index(frame.ID);
   if (counter_index != invalid_transmit_counter_index) {
     last_transmit_counter_valid[counter_index] = true;
@@ -243,8 +273,8 @@ bool KiaEGmpBattery::has_transmit_counter(uint16_t can_id) const {
 void KiaEGmpBattery::transmit_message(uint16_t can_id, uint32_t message_count) {
   uint8_t selected_message = 0;
   bool found_message = false;
-  for (uint8_t index = 0; index < sizeof(messages) / sizeof(messages[0]); index++) {
-    if (messages[index]->ID == can_id) {
+  for (uint8_t index = 0; index < work_message_count; index++) {
+    if (work_messages[index].ID == can_id) {
       selected_message = index;
       found_message = true;
       if (can_id == 0x30A && (message_count & 1) != 0) {
@@ -255,8 +285,8 @@ void KiaEGmpBattery::transmit_message(uint16_t can_id, uint32_t message_count) {
   }
 
   if (can_id == 0x30A && (message_count & 1) != 0) {
-    for (uint8_t index = selected_message + 1; index < sizeof(messages) / sizeof(messages[0]); index++) {
-      if (messages[index]->ID == can_id) {
+    for (uint8_t index = selected_message + 1; index < work_message_count; index++) {
+      if (work_messages[index].ID == can_id) {
         selected_message = index;
         break;
       }
@@ -267,7 +297,7 @@ void KiaEGmpBattery::transmit_message(uint16_t can_id, uint32_t message_count) {
     return;
   }
 
-  CAN_frame frame = *messages[selected_message];
+  CAN_frame frame = work_messages[selected_message];
   const uint8_t counter_index = find_transmit_counter_index(frame.ID);
   if (counter_index != invalid_transmit_counter_index) {
     uint8_t next_counter = frame.data.u8[2];
@@ -525,13 +555,13 @@ void KiaEGmpBattery::transmit_can(unsigned long currentMillis) {
     }
 
     if (startupSequenceActive) {
-      while (startupMessageIndex < sizeof(messages) / sizeof(messages[0]) &&
-             currentMillis - startupStartMillis >= startupMessageDelays[startupMessageIndex]) {
+      while (startupMessageIndex < startup_trigger_count &&
+             currentMillis - startupStartMillis >= startup_trigger_delays[startupMessageIndex]) {
         transmit_startup_message(startupMessageIndex);
         startupMessageIndex++;
       }
 
-      if (startupMessageIndex >= sizeof(messages) / sizeof(messages[0])) {
+      if (startupMessageIndex >= startup_trigger_count) {
         startupSequenceActive = false;
         startupSequenceComplete = true;
         lastTransmitMillis = currentMillis;
