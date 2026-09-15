@@ -375,7 +375,8 @@ String KiaEGmpBattery::get_uds_info_html() {
   content.reserve(1600);
 
   // clang-format off
-  content << "<h4>Cells: " << String(datalayer.battery.info.number_of_cells) << "</h4>"
+  content << "<h3>BATTERY_MGMT</h3>"
+              "<h4>Cells: " << String(datalayer.battery.info.number_of_cells) << "</h4>"
               "<h4>SOC (BMS): " << String(SOC_BMS) << "</h4>"
               "<h4>SOC (Display): " << String(SOC_Display) << "</h4>"
               "<h4>SOH: " << String(batterySOH / 10.0f, 1) << "%</h4>"
@@ -397,7 +398,8 @@ String KiaEGmpBattery::get_uds_info_html() {
               "<h4>Cumulative Discharge Energy: " << String(cumulativeDischargeEnergy) << " Wh</h4>"
               "<h4>Operation Time: " << String(opTime) << " s</h4>"
               "<h4>BMS ignition: " << String(BMS_ign) << "</h4>"
-              "<h4>Battery relay: " << String(batteryRelay) << "</h4>"
+              "<h4>BMS Main Relay: " << String(batteryRelay) << "</h4>"
+              "<h3>CHARGE_MGMT (BO_1868 / 0x740)</h3>"
               "<h4>Charging socket connected: " << String(charging_socket_connected) << "</h4>"
               "<h4>Battery main relay status: " << String(battery_main_relay_status) << "</h4>"
               "<h4>400V relay on/off request: " << String(relay_on_off_request) << "</h4>"
@@ -524,9 +526,9 @@ uint16_t KiaEGmpBattery::handle_pid(uint16_t pid, uint32_t value, const uint8_t*
       //Frame 27 (a8 01 03 f3 0f 00 02) data45-51
       opTime = data[46] << 24 | data[47] << 16 | data[48] << 8 | data[49];
       BMS_ign = data[50];
-      // DBC mapping: BMS ignition and the adjacent relay-status byte are carried in the same status block.
-      // Keep the raw value available for the More Battery Info page without changing the existing inverter voltage decode.
-      batteryRelay = data[51];
+      // DBC mapping: the BO_2028 BMS_Main_Relay signal is the low-bit of the next status byte.
+      // Keep the dedicated bit value for the More Battery Info page while preserving the legacy raw-byte decode.
+      batteryRelay = data[51] & 0x01;
       inverterVoltage = ((data[51] << 8) + data[52]);  // Flow over
       //Frame 28 (c9 00 00 00 00 0b b8) data52-58
       break;
