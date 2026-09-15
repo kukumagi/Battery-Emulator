@@ -80,7 +80,7 @@ class KiaEGmpBattery : public UdsCanBattery {
   uint8_t CellVminNo = 0;
   uint8_t batteryManagementMode = 0;
   uint8_t BMS_ign = 0xff;
-  uint8_t batteryRelay = 0;
+  uint8_t batteryRelay = 0;  // BO_2028 BMS_Main_Relay (0/1)
   uint8_t charging_socket_connected = 0;
   uint8_t battery_main_relay_status = 0;
   uint8_t relay_on_off_request = 0;
