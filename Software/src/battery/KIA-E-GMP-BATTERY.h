@@ -40,6 +40,7 @@ class KiaEGmpBattery : public UdsCanBattery {
   CAN_frame build_startup_message(uint8_t message_index);
   bool has_transmit_counter(uint16_t can_id) const;
   void transmit_startup_message(uint8_t message_index);
+  void apply_dc_link_voltage(CAN_frame& frame);
   void transmit_message(uint16_t can_id, uint32_t message_count);
   // void set_cell_voltages(uint8_t reading, uint8_t cellNumber);
   // void process_cell_voltage_group(const uint8_t* data, uint8_t baseCell);
