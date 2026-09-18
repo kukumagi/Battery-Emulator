@@ -162,6 +162,190 @@ uint8_t KiaEGmpBattery::calculateCRC(CAN_frame rx_frame, uint8_t length, uint8_t
   return crc;
 }
 
+uint16_t KiaEGmpBattery::calculate_transmit_checksum(const CAN_frame& frame) {
+  uint16_t crc = 0;
+  for (uint8_t index = 2; index < frame.DLC; index++) {
+    crc ^= static_cast<uint16_t>(frame.data.u8[index]) << 8;
+    for (uint8_t bit = 0; bit < 8; bit++) {
+      crc = (crc & 0x8000) ? static_cast<uint16_t>((crc << 1) ^ 0x1021) : static_cast<uint16_t>(crc << 1);
+    }
+  }
+
+  for (uint8_t value : {static_cast<uint8_t>(frame.ID), static_cast<uint8_t>(0)}) {
+    crc ^= static_cast<uint16_t>(value) << 8;
+    for (uint8_t bit = 0; bit < 8; bit++) {
+      crc = (crc & 0x8000) ? static_cast<uint16_t>((crc << 1) ^ 0x1021) : static_cast<uint16_t>(crc << 1);
+    }
+  }
+
+  return crc ^ transmit_checksum_xor(frame.ID);
+}
+
+uint16_t KiaEGmpBattery::transmit_checksum_xor(uint16_t can_id) const {
+  switch (can_id) {
+    case 0x10A:
+    case 0x120:
+    case 0x19A:
+      return 0x8F7A;
+    case 0x2B5:
+    case 0x2C0:
+    case 0x2D5:
+    case 0x2E0:
+    case 0x2E5:
+    case 0x2EA:
+      return 0xBF19;
+    case 0x306:
+      return 0xADAC;
+    case 0x308:
+      return 0x1768;
+    case 0x30A:
+    case 0x320:
+    case 0x33A:
+    case 0x350:
+    case 0x3B5:
+      return 0xAF38;
+    default:
+      return 0x9F5B;
+  }
+}
+
+void KiaEGmpBattery::request_startup_sequence() {
+  startupSequenceRequested = true;
+  startupSequenceComplete = false;
+}
+
+uint8_t KiaEGmpBattery::find_transmit_counter_index(uint16_t can_id) {
+  for (uint8_t i = 0; i < transmit_counter_id_count; i++) {
+    if (transmit_counter_ids[i] == can_id) {
+      return i;
+    }
+  }
+  return invalid_transmit_counter_index;
+}
+
+CAN_frame KiaEGmpBattery::build_startup_message(uint8_t message_index) {
+  CAN_frame frame = {};
+  frame.FD = true;
+  frame.ext_ID = false;
+  frame.DLC = 32;
+  frame.ID = startup_trigger_ids[message_index];
+
+  for (uint8_t index = 0; index < work_message_count; index++) {
+    if (work_messages[index].ID == frame.ID) {
+      frame = work_messages[index];
+      break;
+    }
+  }
+
+  const uint8_t counter_index = find_transmit_counter_index(frame.ID);
+  if (counter_index != invalid_transmit_counter_index) {
+    uint8_t next_counter = 0;
+    if (last_transmit_counter_valid[counter_index]) {
+      next_counter = static_cast<uint8_t>(last_transmit_counter[counter_index] + 1u);
+    }
+    last_transmit_counter_valid[counter_index] = true;
+    last_transmit_counter[counter_index] = next_counter;
+    frame.data.u8[2] = next_counter;
+  }
+
+  frame.data.u8[0] = 0;
+  frame.data.u8[1] = 0;
+  return frame;
+}
+
+void KiaEGmpBattery::apply_dc_link_voltage(CAN_frame& frame) {
+  // batteryVoltage is 0.1 V/LSB internally.
+  // Default to 806 V until a valid live pack voltage is available.
+  uint16_t live_pack_voltage_V = 806;
+
+  if (batteryVoltage > 0) {
+    live_pack_voltage_V = static_cast<uint16_t>((batteryVoltage + 5) / 10);
+  }
+
+  switch (frame.ID) {
+    case 0x10A:
+    case 0x120:
+      // DC-link voltage: 1 V/bit, little-endian
+      frame.data.u8[16] = static_cast<uint8_t>(live_pack_voltage_V & 0xFF);
+      frame.data.u8[17] = static_cast<uint8_t>((live_pack_voltage_V >> 8) & 0xFF);
+      break;
+
+    case 0x3B5:
+      // DC-link voltage: 1 V/bit, little-endian
+      frame.data.u8[15] = static_cast<uint8_t>(live_pack_voltage_V & 0xFF);
+      frame.data.u8[16] = static_cast<uint8_t>((live_pack_voltage_V >> 8) & 0xFF);
+      break;
+
+    default:
+      break;
+  }
+}
+
+void KiaEGmpBattery::transmit_startup_message(uint8_t message_index) {
+  CAN_frame frame = build_startup_message(message_index);
+  const uint8_t counter_index = find_transmit_counter_index(frame.ID);
+  if (counter_index != invalid_transmit_counter_index) {
+    last_transmit_counter_valid[counter_index] = true;
+    last_transmit_counter[counter_index] = frame.data.u8[2];
+  }
+  apply_dc_link_voltage(frame);
+  uint16_t checksum = calculate_transmit_checksum(frame);
+  frame.data.u8[0] = static_cast<uint8_t>(checksum);
+  frame.data.u8[1] = static_cast<uint8_t>(checksum >> 8);
+  transmit_can_frame(&frame);
+}
+
+bool KiaEGmpBattery::has_transmit_counter(uint16_t can_id) const {
+  return find_transmit_counter_index(can_id) != invalid_transmit_counter_index;
+}
+
+void KiaEGmpBattery::transmit_message(uint16_t can_id, uint32_t message_count) {
+  uint8_t selected_message = 0;
+  bool found_message = false;
+  for (uint8_t index = 0; index < work_message_count; index++) {
+    if (work_messages[index].ID == can_id) {
+      selected_message = index;
+      found_message = true;
+      if (can_id == 0x30A && (message_count & 1) != 0) {
+        continue;
+      }
+      break;
+    }
+  }
+
+  if (can_id == 0x30A && (message_count & 1) != 0) {
+    for (uint8_t index = selected_message + 1; index < work_message_count; index++) {
+      if (work_messages[index].ID == can_id) {
+        selected_message = index;
+        break;
+      }
+    }
+  }
+
+  if (!found_message) {
+    return;
+  }
+
+  CAN_frame frame = work_messages[selected_message];
+  const uint8_t counter_index = find_transmit_counter_index(frame.ID);
+  if (counter_index != invalid_transmit_counter_index) {
+    uint8_t next_counter = frame.data.u8[2];
+    if (last_transmit_counter_valid[counter_index]) {
+      next_counter = static_cast<uint8_t>(last_transmit_counter[counter_index] + 1u);
+    } else {
+      next_counter = static_cast<uint8_t>(frame.data.u8[2]);
+      last_transmit_counter_valid[counter_index] = true;
+    }
+    last_transmit_counter[counter_index] = next_counter;
+    frame.data.u8[2] = next_counter;
+  }
+  apply_dc_link_voltage(frame);
+  uint16_t checksum = calculate_transmit_checksum(frame);
+  frame.data.u8[0] = static_cast<uint8_t>(checksum);
+  frame.data.u8[1] = static_cast<uint8_t>(checksum >> 8);
+  transmit_can_frame(&frame);
+}
+
 void KiaEGmpBattery::update_values() {
 
   if (user_selected_use_estimated_SOC) {
@@ -193,9 +377,31 @@ void KiaEGmpBattery::update_values() {
 
   datalayer.battery.status.temperature_max_dC = (int8_t)temperatureMax * 10;  //Increase decimals, 18C -> 18.0C
 
-  datalayer.battery.status.cell_max_voltage_mV = CellVoltMax_mV;
+  uint16_t actual_min_mV = UINT16_MAX;
+  uint16_t actual_max_mV = 0;
+  bool any_valid_cell = false;
 
-  datalayer.battery.status.cell_min_voltage_mV = CellVoltMin_mV;
+  for (int i = 0; i < MAX_AMOUNT_CELLS; ++i) {
+    uint16_t v = datalayer.battery.status.cell_voltages_mV[i];
+    if (v > 0) {
+      any_valid_cell = true;
+      if (v < actual_min_mV) {
+        actual_min_mV = v;
+      }
+      if (v > actual_max_mV) {
+        actual_max_mV = v;
+      }
+    }
+  }
+
+  if (any_valid_cell) {
+    datalayer.battery.status.cell_max_voltage_mV = actual_max_mV;
+    datalayer.battery.status.cell_min_voltage_mV = actual_min_mV;
+  } else {
+    // No cell data populated yet - fall back to the coarser UDS-reported values
+    datalayer.battery.status.cell_max_voltage_mV = CellVoltMax_mV;
+    datalayer.battery.status.cell_min_voltage_mV = CellVoltMin_mV;
+  }
 
   if ((millis64() > INTERVAL_60_S) && !set_voltage_limits) {  // millis64: plain millis() wraps after 49.7 days
     set_voltage_limits = true;
@@ -221,17 +427,35 @@ String KiaEGmpBattery::get_uds_info_html() {
   content.reserve(1600);
 
   // clang-format off
-  content << "<h4>Cells: " << String(datalayer.battery.info.number_of_cells) << "</h4>"
+  content << "<h3>BATTERY_MGMT</h3>"
+              "<h4>Cells: " << String(datalayer.battery.info.number_of_cells) << "</h4>"
               "<h4>SOC (BMS): " << String(SOC_BMS) << "</h4>"
               "<h4>SOC (Display): " << String(SOC_Display) << "</h4>"
+              "<h4>SOH: " << String(batterySOH / 10.0f, 1) << "%</h4>"
+              "<h4>Allowed charge power: " << String(allowedChargePower / 100.0f, 2) << " kW</h4>"
+              "<h4>Allowed discharge power: " << String(allowedDischargePower / 100.0f, 2) << " kW</h4>"
               "<h4>12V voltage: " << String(leadAcidBatteryVoltage / 10.0f, 1) << "</h4>"
-              "<h4>Waterleakage: " << String(waterleakageSensor)  << "</h4>"
-              "<h4>Temperature, water inlet: " << String(temperature_water_inlet)  << "</h4>"
-              "<h4>Batterymanagement mode: " << String(batteryManagementMode)  << "</h4>"
-              "<h4>Cumulative Charge Energy: " << String(cumulativeChargeEnergy)  << " Wh</h4>"
-              "<h4>Cumulative Discharge Energy: " << String(cumulativeDischargeEnergy)  << " Wh</h4>"
-              "<h4>Operation Time: " << String(opTime)  << " s</h4>"
-              "<h4>BMS ignition: " << String(BMS_ign)  << "</h4>";
+              "<h4>Inverter voltage: " << String(inverterVoltage) << " V</h4>"
+              "<h4>Waterleakage: " << String(waterleakageSensor) << "</h4>"
+              "<h4>Temperature, water inlet: " << String(temperature_water_inlet) << " &deg;C</h4>"
+              "<h4>Temperature, heater: " << String(heatertemp) << " &deg;C</h4>"
+              "<h4>Temp min: " << String(temperatureMin) << " &deg;C</h4>"
+              "<h4>Temp max: " << String(temperatureMax) << " &deg;C</h4>"
+              "<h4>Cell max voltage: " << String(CellVoltMax_mV) << " mV</h4>"
+              "<h4>Cell min voltage: " << String(CellVoltMin_mV) << " mV</h4>"
+              "<h4>Highest cell: no " << String(CellVmaxNo) << "</h4>"
+              "<h4>Lowest cell: no " << String(CellVminNo) << "</h4>"
+              "<h4>Batterymanagement mode: " << String(batteryManagementMode) << "</h4>"
+              "<h4>Cumulative Charge Energy: " << String(cumulativeChargeEnergy) << " Wh</h4>"
+              "<h4>Cumulative Discharge Energy: " << String(cumulativeDischargeEnergy) << " Wh</h4>"
+              "<h4>Operation Time: " << String(opTime) << " s</h4>"
+              "<h4>BMS ignition: " << String(BMS_ign) << "</h4>"
+              "<h4>BMS Main Relay: " << String(batteryRelay) << "</h4>"
+              "<h3>CHARGE_MGMT (BO_1868 / 0x740)</h3>"
+              "<h4>Charging socket connected: " << String(charging_socket_connected) << "</h4>"
+              "<h4>Battery main relay status: " << String(battery_main_relay_status) << "</h4>"
+              "<h4>400V relay on/off request: " << String(relay_on_off_request) << "</h4>"
+              "<h4>400V relay status: " << String(relay_status) << "</h4>";
 
   return content;
 }
@@ -297,6 +521,14 @@ void KiaEGmpBattery::handle_incoming_can_frame(CAN_frame rx_frame) {
     case 0x3F5:
       datalayer.battery.status.CAN_battery_still_alive = CAN_STILL_ALIVE;
       break;
+    case 0x740:  // CHARGE_MGMT / charging and relay state bits from the Hyundai/Kia DBC
+      if (rx_frame.DLC >= 8) {
+        charging_socket_connected = (rx_frame.data.u8[7] >> 1) & 0x01;
+        battery_main_relay_status = (rx_frame.data.u8[7] >> 2) & 0x01;
+        relay_on_off_request = (rx_frame.data.u8[7] >> 4) & 0x01;
+        relay_status = (rx_frame.data.u8[7] >> 5) & 0x01;
+      }
+      break;
     case 0x7EC:
       //Handled in UDS Superclass
       break;
@@ -344,9 +576,12 @@ uint16_t KiaEGmpBattery::handle_pid(uint16_t pid, uint32_t value, const uint8_t*
       cumulativeDischargeEnergy2 = data[43] << 16 | data[44] << 8 | data[45]; //Flow over
 
       //Frame 27 (a8 01 03 f3 0f 00 02) data45-51
-      opTime = data[46] << 24 | data[47] << 16 | data[48] << 8 | data[49]; 
+      opTime = data[46] << 24 | data[47] << 16 | data[48] << 8 | data[49];
       BMS_ign = data[50];
-      inverterVoltage = ((data[51] << 8) + data[52]); //Flow over
+      // DBC mapping: the BO_2028 BMS_Main_Relay signal is the low-bit of the next status byte.
+      // Keep the dedicated bit value for the More Battery Info page while preserving the legacy raw-byte decode.
+      batteryRelay = data[51] & 0x01;
+      inverterVoltage = ((data[51] << 8) + data[52]);  // Flow over
       //Frame 28 (c9 00 00 00 00 0b b8) data52-58
       break;
 case POLL_GROUP_2: //Cellvoltages (Cell 1-32)
@@ -391,24 +626,63 @@ break;
 
 void KiaEGmpBattery::transmit_can(unsigned long currentMillis) {
   if (startedUp) {
-    //Send Contactor closing message loop
-    // Check if we still have messages to send
-    if (messageIndex < sizeof(messageDelays) / sizeof(messageDelays[0])) {
+    if (startupSequenceRequested || (!startupSequenceComplete && !startupSequenceActive)) {
+      startupSequenceRequested = false;
+      startupSequenceActive = true;
+      startupMessageIndex = 0;
+      startupStartMillis = currentMillis;
+      transmitScheduleStarted = false;
+      transmit10msCount = 0;
+    }
 
-      // Check if it's time to send the next message
-      if (currentMillis - startMillis >= messageDelays[messageIndex]) {
+    if (startupSequenceActive) {
+      while (startupMessageIndex < startup_trigger_count &&
+             currentMillis - startupStartMillis >= startup_trigger_delays[startupMessageIndex]) {
+        transmit_startup_message(startupMessageIndex);
+        startupMessageIndex++;
+      }
 
-        // Transmit the current message
-        transmit_can_frame(messages[messageIndex]);
-
-        // Move to the next message
-        messageIndex++;
+      if (startupMessageIndex >= startup_trigger_count) {
+        startupSequenceActive = false;
+        startupSequenceComplete = true;
+        lastTransmitMillis = currentMillis;
+        transmitScheduleStarted = true;
       }
     }
 
-    if (messageIndex >= 63) {
-      startMillis = currentMillis;  // Start over!
-      messageIndex = 0;
+    if (!startupSequenceActive) {
+    if (!transmitScheduleStarted) {
+      lastTransmitMillis = currentMillis;
+      transmitScheduleStarted = true;
+    }
+
+    while (currentMillis - lastTransmitMillis >= 10) {
+      lastTransmitMillis += 10;
+      transmit_message(0x10A, transmit10msCount);
+      transmit_message(0x120, transmit10msCount);
+      transmit_message(0x19A, transmit10msCount);
+
+      if ((transmit10msCount % 10) == 0) {
+        transmit_message(0x2B5, transmit10msCount / 10);
+        transmit_message(0x2E0, transmit10msCount / 10);
+        transmit_message(0x33A, transmit10msCount / 10);
+        transmit_message(0x350, transmit10msCount / 10);
+        transmit_message(0x2E5, transmit10msCount / 10);
+        transmit_message(0x30A, transmit10msCount / 10);
+        transmit_message(0x320, transmit10msCount / 10);
+      }
+
+      if ((transmit10msCount % 20) == 0) {
+        transmit_message(0x2C0, transmit10msCount / 20);
+        transmit_message(0x2D5, transmit10msCount / 20);
+        transmit_message(0x2EA, transmit10msCount / 20);
+        transmit_message(0x306, transmit10msCount / 20);
+        transmit_message(0x308, transmit10msCount / 20);
+        transmit_message(0x3B5, transmit10msCount / 20);
+      }
+
+      transmit10msCount++;
+    }
     }
 
     // UDS PID polling and DTC handling
