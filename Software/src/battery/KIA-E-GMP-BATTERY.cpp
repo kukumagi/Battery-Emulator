@@ -253,6 +253,34 @@ CAN_frame KiaEGmpBattery::build_startup_message(uint8_t message_index) {
   return frame;
 }
 
+void KiaEGmpBattery::apply_dc_link_voltage(CAN_frame& frame) {
+  // batteryVoltage is 0.1 V/LSB internally.
+  // Default to 806 V until a valid live pack voltage is available.
+  uint16_t live_pack_voltage_V = 806;
+
+  if (batteryVoltage > 0) {
+    live_pack_voltage_V = static_cast<uint16_t>((batteryVoltage + 5) / 10);
+  }
+
+  switch (frame.ID) {
+    case 0x10A:
+    case 0x120:
+      // DC-link voltage: 1 V/bit, little-endian
+      frame.data.u8[16] = static_cast<uint8_t>(live_pack_voltage_V & 0xFF);
+      frame.data.u8[17] = static_cast<uint8_t>((live_pack_voltage_V >> 8) & 0xFF);
+      break;
+
+    case 0x3B5:
+      // DC-link voltage: 1 V/bit, little-endian
+      frame.data.u8[15] = static_cast<uint8_t>(live_pack_voltage_V & 0xFF);
+      frame.data.u8[16] = static_cast<uint8_t>((live_pack_voltage_V >> 8) & 0xFF);
+      break;
+
+    default:
+      break;
+  }
+}
+
 void KiaEGmpBattery::transmit_startup_message(uint8_t message_index) {
   CAN_frame frame = build_startup_message(message_index);
   const uint8_t counter_index = find_transmit_counter_index(frame.ID);
@@ -260,6 +288,7 @@ void KiaEGmpBattery::transmit_startup_message(uint8_t message_index) {
     last_transmit_counter_valid[counter_index] = true;
     last_transmit_counter[counter_index] = frame.data.u8[2];
   }
+  apply_dc_link_voltage(frame);
   uint16_t checksum = calculate_transmit_checksum(frame);
   frame.data.u8[0] = static_cast<uint8_t>(checksum);
   frame.data.u8[1] = static_cast<uint8_t>(checksum >> 8);
@@ -310,6 +339,7 @@ void KiaEGmpBattery::transmit_message(uint16_t can_id, uint32_t message_count) {
     last_transmit_counter[counter_index] = next_counter;
     frame.data.u8[2] = next_counter;
   }
+  apply_dc_link_voltage(frame);
   uint16_t checksum = calculate_transmit_checksum(frame);
   frame.data.u8[0] = static_cast<uint8_t>(checksum);
   frame.data.u8[1] = static_cast<uint8_t>(checksum >> 8);
