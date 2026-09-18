@@ -347,9 +347,31 @@ void KiaEGmpBattery::update_values() {
 
   datalayer.battery.status.temperature_max_dC = (int8_t)temperatureMax * 10;  //Increase decimals, 18C -> 18.0C
 
-  datalayer.battery.status.cell_max_voltage_mV = CellVoltMax_mV;
+  uint16_t actual_min_mV = UINT16_MAX;
+  uint16_t actual_max_mV = 0;
+  bool any_valid_cell = false;
 
-  datalayer.battery.status.cell_min_voltage_mV = CellVoltMin_mV;
+  for (int i = 0; i < MAX_AMOUNT_CELLS; ++i) {
+    uint16_t v = datalayer.battery.status.cell_voltages_mV[i];
+    if (v > 0) {
+      any_valid_cell = true;
+      if (v < actual_min_mV) {
+        actual_min_mV = v;
+      }
+      if (v > actual_max_mV) {
+        actual_max_mV = v;
+      }
+    }
+  }
+
+  if (any_valid_cell) {
+    datalayer.battery.status.cell_max_voltage_mV = actual_max_mV;
+    datalayer.battery.status.cell_min_voltage_mV = actual_min_mV;
+  } else {
+    // No cell data populated yet - fall back to the coarser UDS-reported values
+    datalayer.battery.status.cell_max_voltage_mV = CellVoltMax_mV;
+    datalayer.battery.status.cell_min_voltage_mV = CellVoltMin_mV;
+  }
 
   if ((millis64() > INTERVAL_60_S) && !set_voltage_limits) {  // millis64: plain millis() wraps after 49.7 days
     set_voltage_limits = true;
