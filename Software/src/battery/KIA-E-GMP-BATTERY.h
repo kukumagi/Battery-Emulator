@@ -48,6 +48,22 @@ class KiaEGmpBattery : public UdsCanBattery {
   void set_cell_voltage_mv(uint16_t voltage_mV, uint8_t cellNumber);
   void handle_0x215_cell_voltages(const CAN_frame& rx_frame);
 
+  static constexpr uint8_t MAX_21A_LOG_ENTRIES = 50;
+
+  struct Can21AByte4LogEntry {
+    uint32_t time_ms;
+    uint8_t value;
+  };
+
+  Can21AByte4LogEntry can21a_byte4_log[MAX_21A_LOG_ENTRIES];
+  uint8_t can21a_byte4_log_count = 0;
+  uint8_t can21a_byte4_log_write_index = 0;
+
+  uint8_t can21a_byte4_last_value = 0;
+  bool can21a_byte4_valid = false;
+
+  void handle_0x21A(const CAN_frame& rx_frame);
+
   static const int MAX_PACK_VOLTAGE_DV = 8064;  //5000 = 500.0V
   static const int MIN_PACK_VOLTAGE_DV = 4320;
   static const int MAX_CELL_DEVIATION_MV = 150;
