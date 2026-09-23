@@ -691,6 +691,32 @@ break;
   return 0;  //Continue scanning the PID list in order
 }
 
+void KiaEGmpBattery::transmit_candidate_actuator_messages(uint32_t tick10ms) {
+  static const uint16_t group_10ms[] = {0x035, 0x0B0, 0x0F5};
+  static const uint16_t group_20ms[] = {0x145, 0x16A, 0x1A0, 0x1B0};
+  static const uint16_t group_100ms[] = {0x090, 0x1FA, 0x255, 0x27A, 0x2AA};
+
+  auto send_group = [this](const uint16_t* ids, uint8_t count) {
+    for (uint8_t i = 0; i < count; i++) {
+      for (uint8_t j = 0; j < candidate_actuator_message_count; j++) {
+        if (candidate_actuator_messages[j].ID == ids[i]) {
+          CAN_frame frame = candidate_actuator_messages[j];
+          transmit_can_frame(&frame);
+          break;
+        }
+      }
+    }
+  };
+
+  send_group(group_10ms, 3);
+  if ((tick10ms % 2) == 0) {
+    send_group(group_20ms, 4);
+  }
+  if ((tick10ms % 10) == 0) {
+    send_group(group_100ms, 5);
+  }
+}
+
 void KiaEGmpBattery::transmit_can(unsigned long currentMillis) {
   if (startedUp) {
     if (startupSequenceRequested || (!startupSequenceComplete && !startupSequenceActive)) {
@@ -749,6 +775,7 @@ void KiaEGmpBattery::transmit_can(unsigned long currentMillis) {
       }
 
       transmit10msCount++;
+      transmit_candidate_actuator_messages(transmit10msCount);
     }
     }
 
