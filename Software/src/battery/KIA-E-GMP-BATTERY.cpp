@@ -21,6 +21,7 @@ uint8_t can21a_byte4_log_write_index = 0;
 
 uint8_t can21a_byte4_last_value = 0;
 bool can21a_byte4_valid = false;
+
 }  // namespace
 
 // Function to estimate SOC based on cell voltage
@@ -692,15 +693,28 @@ break;
 }
 
 void KiaEGmpBattery::transmit_candidate_actuator_messages(uint32_t tick10ms) {
-  static const uint16_t group_10ms[] = {0x035, 0x0B0, 0x0F5};
-  static const uint16_t group_20ms[] = {0x145, 0x16A, 0x1A0, 0x1B0};
-  static const uint16_t group_100ms[] = {0x090, 0x1FA, 0x255, 0x27A, 0x2AA};
+  static uint8_t candidate_last_counter[candidate_actuator_message_count] = {};
+  static bool candidate_counter_valid[candidate_actuator_message_count] = {};
+
+  static const uint16_t group_10ms[] = {0x035, 0x060, 0x065, 0x06F, 0x0A0, 0x0B0, 0x0DA, 0x0F5, 0x115, 0x125, 0x130};
+  static const uint16_t group_20ms[] = {0x145, 0x16A, 0x175, 0x180, 0x185, 0x1A0, 0x1AA, 0x1B0, 0x1CF};
+  static const uint16_t group_50ms[] = {0x1BA, 0x1E5, 0x1F0, 0x419};
+  static const uint16_t group_100ms[] = {0x090, 0x1FA, 0x205, 0x20A, 0x225, 0x250, 0x255, 0x27A, 0x2AA, 0x36F, 0x37F, 0x385};
+  static const uint16_t group_200ms[] = {0x315, 0x380, 0x382, 0x383, 0x384, 0x395, 0x39B, 0x3A0, 0x3AA, 0x3C1, 0x3C2, 0x3E0, 0x3E1, 0x405, 0x410, 0x411, 0x412, 0x413, 0x414, 0x416, 0x417, 0x418, 0x422, 0x437, 0x444, 0x4B4, 0x4B5, 0x4B7, 0x4CC, 0x4D8, 0x4DD, 0x4E7, 0x4E9, 0x4EA, 0x4EB, 0x4EC, 0x4ED, 0x4EE, 0x4EF, 0x4F0, 0x641};
+  static const uint16_t group_1000ms[] = {0x1F1, 0x1F2, 0x1F3, 0x1F4, 0x1F6, 0x1F7, 0x1F8, 0x1F9, 0x1FB, 0x1FC, 0x1FD, 0x1FE, 0x201, 0x202, 0x305, 0x3F0, 0x480, 0x48F, 0x4F2};
+  static const uint16_t group_2000ms[] = {0x4FE};
 
   auto send_group = [this](const uint16_t* ids, uint8_t count) {
     for (uint8_t i = 0; i < count; i++) {
       for (uint8_t j = 0; j < candidate_actuator_message_count; j++) {
         if (candidate_actuator_messages[j].ID == ids[i]) {
           CAN_frame frame = candidate_actuator_messages[j];
+          uint8_t next_counter = candidate_counter_valid[j]
+                                      ? static_cast<uint8_t>(candidate_last_counter[j] + 1u)
+                                      : frame.data.u8[2];
+          candidate_counter_valid[j] = true;
+          candidate_last_counter[j] = next_counter;
+          frame.data.u8[2] = next_counter;
           transmit_can_frame(&frame);
           break;
         }
@@ -708,12 +722,24 @@ void KiaEGmpBattery::transmit_candidate_actuator_messages(uint32_t tick10ms) {
     }
   };
 
-  send_group(group_10ms, 3);
+  send_group(group_10ms, 11);
   if ((tick10ms % 2) == 0) {
-    send_group(group_20ms, 4);
+    send_group(group_20ms, 9);
+  }
+  if ((tick10ms % 5) == 0) {
+    send_group(group_50ms, 4);
   }
   if ((tick10ms % 10) == 0) {
-    send_group(group_100ms, 5);
+    send_group(group_100ms, 12);
+  }
+  if ((tick10ms % 20) == 0) {
+    send_group(group_200ms, 41);
+  }
+  if ((tick10ms % 100) == 0) {
+    send_group(group_1000ms, 19);
+  }
+  if ((tick10ms % 200) == 0) {
+    send_group(group_2000ms, 1);
   }
 }
 
