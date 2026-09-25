@@ -21,6 +21,7 @@ uint8_t can21a_byte4_log_write_index = 0;
 
 uint8_t can21a_byte4_last_value = 0;
 bool can21a_byte4_valid = false;
+
 }  // namespace
 
 // Function to estimate SOC based on cell voltage
@@ -219,6 +220,132 @@ uint16_t KiaEGmpBattery::transmit_checksum_xor(uint16_t can_id) const {
     case 0x350:
     case 0x3B5:
       return 0xAF38;
+    case 0x145:
+    case 0x16A:
+    case 0x1A0:
+    case 0x1B0:
+    case 0x1F1:
+    case 0x1F2:
+    case 0x1F3:
+    case 0x1F4:
+    case 0x1F6:
+    case 0x1F7:
+    case 0x1F8:
+    case 0x1F9:
+    case 0x1FA:
+    case 0x1FB:
+    case 0x1FC:
+    case 0x1FD:
+    case 0x1FE:
+      return 0x8F7A;
+    case 0x201:
+    case 0x202:
+    case 0x255:
+    case 0x2AA:
+      return 0xBF19;
+    case 0x0A0:
+    case 0x0DA:
+      return 0x819D;
+    case 0x115:
+    case 0x180:
+    case 0x185:
+      return 0x4F08;
+    case 0x125:
+    case 0x130:
+    case 0x1AA:
+    case 0x1E5:
+    case 0x1F0:
+      return 0x143C;
+    case 0x175:
+    case 0x1BA:
+      return 0x91BC;
+    case 0x205:
+    case 0x250:
+      return 0xA1DF;
+    case 0x20A:
+    case 0x225:
+      return 0x245F;
+    case 0x27A:
+      return 0xE20C;
+    case 0x305:
+    case 0x3F0:
+      return 0xAF38;
+    case 0x315:
+    case 0x3A0:
+      return 0x347E;
+    case 0x380:
+    case 0x382:
+    case 0x383:
+    case 0x384:
+    case 0x385:
+      return 0x6F4A;
+    case 0x395:
+      return 0xB1FE;
+    case 0x3C1:
+      return 0x0351;
+    case 0x3C2:
+      return 0x17C5;
+    case 0x3E0:
+      return 0xFF59;
+    case 0x3E1:
+      return 0x5EA4;
+    case 0x405:
+      return 0xC195;
+    case 0x411:
+      return 0x6345;
+    case 0x412:
+      return 0xFDA9;
+    case 0x413:
+      return 0x43E9;
+    case 0x414:
+      return 0xB76A;
+    case 0x416:
+      return 0xA980;
+    case 0x417:
+      return 0xD6F5;
+    case 0x418:
+      return 0x1085;
+    case 0x422:
+      return 0xA09B;
+    case 0x437:
+      return 0x9C02;
+    case 0x444:
+      return 0x4D40;
+    case 0x480:
+      return 0xDFDF;
+    case 0x48F:
+      return 0xE909;
+    case 0x4B4:
+      return 0x9DA8;
+    case 0x4B5:
+      return 0xB539;
+    case 0x4B7:
+      return 0xD35B;
+    case 0x4CC:
+      return 0xFC01;
+    case 0x4D8:
+      return 0x72CD;
+    case 0x4DD:
+      return 0xDD78;
+    case 0x4E7:
+      return 0x51F5;
+    case 0x4E9:
+      return 0xAA2A;
+    case 0x4EA:
+      return 0xFF79;
+    case 0x4EC:
+      return 0xF29C;
+    case 0x4ED:
+      return 0x82CE;
+    case 0x4EE:
+      return 0xCC42;
+    case 0x4EF:
+      return 0x943C;
+    case 0x4FE:
+      return 0x3014;
+    case 0x641:
+      return 0x7679;
+    // 0x035, 0x060, 0x065, 0x090, 0x0B0, 0x0F5 already resolve correctly via default (0x9F5B)
     default:
       return 0x9F5B;
   }
@@ -691,6 +818,60 @@ break;
   return 0;  //Continue scanning the PID list in order
 }
 
+void KiaEGmpBattery::transmit_candidate_actuator_messages(uint32_t tick10ms) {
+  static uint8_t candidate_last_counter[candidate_actuator_message_count] = {};
+  static bool candidate_counter_valid[candidate_actuator_message_count] = {};
+
+  static const uint16_t group_10ms[] = {0x035, 0x060, 0x065, 0x0A0, 0x0B0, 0x0DA, 0x0F5, 0x115, 0x125};
+  static const uint16_t group_20ms[] = {0x145, 0x16A, 0x175, 0x180, 0x185, 0x1A0, 0x1AA, 0x1B0};
+  static const uint16_t group_50ms[] = {0x130, 0x1BA, 0x1F0, 0x3FF};
+  static const uint16_t group_100ms[] = {0x090, 0x1FA, 0x205, 0x20A, 0x225, 0x250, 0x255, 0x27A, 0x2AA, 0x385};
+  static const uint16_t group_200ms[] = {0x1E5, 0x315, 0x380, 0x382, 0x383, 0x384, 0x395, 0x3A0, 0x3C1, 0x3C2, 0x3E0, 0x3E1, 0x405, 0x411, 0x412, 0x413, 0x414, 0x416, 0x417, 0x418, 0x422, 0x437, 0x444, 0x4B4, 0x4B5, 0x4B7, 0x4CC, 0x4D8, 0x4DD, 0x4E7, 0x4E9, 0x4EA, 0x4EC, 0x4ED, 0x4EE, 0x4EF, 0x641};
+  static const uint16_t group_1000ms[] = {0x1F1, 0x1F2, 0x1F3, 0x1F4, 0x1F6, 0x1F7, 0x1F8, 0x1F9, 0x1FB, 0x1FC, 0x1FD, 0x1FE, 0x201, 0x202, 0x305, 0x3F0, 0x480, 0x48F};
+  static const uint16_t group_2000ms[] = {0x4FE};
+
+  auto send_group = [this](const uint16_t* ids, uint8_t count) {
+    for (uint8_t i = 0; i < count; i++) {
+      for (uint8_t j = 0; j < candidate_actuator_message_count; j++) {
+        if (candidate_actuator_messages[j].ID == ids[i]) {
+          CAN_frame frame = candidate_actuator_messages[j];
+          uint8_t next_counter = candidate_counter_valid[j]
+                                      ? static_cast<uint8_t>(candidate_last_counter[j] + 1u)
+                                      : frame.data.u8[2];
+          candidate_counter_valid[j] = true;
+          candidate_last_counter[j] = next_counter;
+          frame.data.u8[2] = next_counter;
+          uint16_t checksum = calculate_transmit_checksum(frame);
+          frame.data.u8[0] = static_cast<uint8_t>(checksum);
+          frame.data.u8[1] = static_cast<uint8_t>(checksum >> 8);
+          transmit_can_frame(&frame);
+          break;
+        }
+      }
+    }
+  };
+
+  send_group(group_10ms, 9);
+  if ((tick10ms % 2) == 0) {
+    send_group(group_20ms, 8);
+  }
+  if ((tick10ms % 5) == 0) {
+    send_group(group_50ms, 4);
+  }
+  if ((tick10ms % 10) == 0) {
+    send_group(group_100ms, 10);
+  }
+  if ((tick10ms % 20) == 0) {
+    send_group(group_200ms, 37);
+  }
+  if ((tick10ms % 100) == 0) {
+    send_group(group_1000ms, 18);
+  }
+  if ((tick10ms % 200) == 0) {
+    send_group(group_2000ms, 1);
+  }
+}
+
 void KiaEGmpBattery::transmit_can(unsigned long currentMillis) {
   if (startedUp) {
     if (startupSequenceRequested || (!startupSequenceComplete && !startupSequenceActive)) {
@@ -749,6 +930,7 @@ void KiaEGmpBattery::transmit_can(unsigned long currentMillis) {
       }
 
       transmit10msCount++;
+      transmit_candidate_actuator_messages(transmit10msCount);
     }
     }
 
