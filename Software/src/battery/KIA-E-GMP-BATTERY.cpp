@@ -851,22 +851,22 @@ void KiaEGmpBattery::transmit_candidate_actuator_messages(uint32_t tick10ms) {
     }
   };
 
-  send_group(group_10ms, 9);
-  if ((tick10ms % 2) == 0) {
-    send_group(group_20ms, 8);
-  }
-  if ((tick10ms % 5) == 0) {
-    send_group(group_50ms, 4);
-  }
+  // send_group(group_10ms, 9);
+  // if ((tick10ms % 2) == 0) {
+  //   send_group(group_20ms, 8);
+  // }
+  // if ((tick10ms % 5) == 0) {
+  //   send_group(group_50ms, 4);
+  // }
   if ((tick10ms % 10) == 0) {
     send_group(group_100ms, 10);
   }
-  if ((tick10ms % 20) == 0) {
-    send_group(group_200ms, 37);
-  }
-  if ((tick10ms % 100) == 0) {
-    send_group(group_1000ms, 18);
-  }
+  // if ((tick10ms % 20) == 0) {
+  //   send_group(group_200ms, 37);
+  // }
+  // if ((tick10ms % 100) == 0) {
+  //   send_group(group_1000ms, 18);
+  // }
   if ((tick10ms % 200) == 0) {
     send_group(group_2000ms, 1);
   }
