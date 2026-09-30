@@ -1,5 +1,4 @@
 #include "UdsCanBattery.h"
-
 #include <Arduino.h>
 #include "../devboard/utils/events.h"
 #include "../devboard/utils/logging.h"
@@ -8,18 +7,61 @@
 constexpr uint16_t UDS_TIMEOUT_CLEAR_DTC = 25;
 constexpr uint16_t UDS_TIMEOUT_READ_DTC = 20;
 constexpr uint16_t UDS_TIMEOUT_READ_DID = 2;
+
 // How many times to retry a particular PID read before giving up.
 constexpr uint16_t UDS_PID_MAX_RETRIES = 10;
+
 // Traffic on 0x7DF (or on uds_address) that isn't ours implies an external
 // diagnostic tool is in use.
 constexpr uint16_t OBD2_REQUEST_ADDRESS = 0x7DF;
+
 // KWP2000 service for one-byte local identifier reads - not part of ISO 14229
 // UDS proper, but similar enough.
 constexpr uint8_t UDS_SID_READ_LOCAL_IDENTIFIER = 0x21;
+
 // How long to back off after detecting another diagnostic tool on the bus.
 constexpr uint16_t UDS_EXTERNAL_TOOL_BACKOFF_TICKS = 50;  // 5 seconds
 
+// Our own marker NRCs for freeze-frame requests that never got a real ECU
+// response. These are not real UDS negative response codes.
+constexpr uint8_t FREEZE_FRAME_NRC_SEND_FAILED = 0xFE;  // request could not be sent
+constexpr uint8_t FREEZE_FRAME_NRC_TIMEOUT = 0xFF;      // ECU never answered
+
 //#define UDS_DEBUG 1
+
+// ---------------------------------------------------------------------------
+// Instance registry (RTTI-free replacement for dynamic_cast<UdsCanBattery*>)
+// ---------------------------------------------------------------------------
+
+UdsCanBattery* UdsCanBattery::uds_instances_head = nullptr;
+
+void UdsCanBattery::register_uds_instance() {
+  next_uds_instance = uds_instances_head;
+  uds_instances_head = this;
+}
+
+void UdsCanBattery::unregister_uds_instance() {
+  for (UdsCanBattery** p = &uds_instances_head; *p != nullptr; p = &(*p)->next_uds_instance) {
+    if (*p == this) {
+      *p = next_uds_instance;
+      break;
+    }
+  }
+}
+
+UdsCanBattery* UdsCanBattery::from_battery(Battery* b) {
+  if (b == nullptr) {
+    return nullptr;
+  }
+  for (UdsCanBattery* u = uds_instances_head; u != nullptr; u = u->next_uds_instance) {
+    if (static_cast<Battery*>(u) == b) {  // pointer comparison after a safe upcast
+      return u;
+    }
+  }
+  return nullptr;
+}
+
+// ---------------------------------------------------------------------------
 
 void UdsCanBattery::transmit_uds_can(unsigned long currentMillis) {
   // Called from batteries' own transmit_can() methods.
@@ -98,13 +140,17 @@ bool UdsCanBattery::transaction_tick() {
     }
     const uint16_t failed = seq_state;
     seq_state = UDS_STATE_IDLE;
-    // Notify the subclass that it failed
-    on_uds_sequence_timeout(failed);
+    if (failed == UDS_STATE_FREEZE_FRAME) {
+      // Report the timeout to the UI so it doesn't poll forever.
+      store_freeze_frame_failure(FREEZE_FRAME_NRC_TIMEOUT);
+    } else {
+      // Notify the subclass that it failed
+      on_uds_sequence_timeout(failed);
+    }
   } else if (pending_pid != 0) {
     // Our PID scan must have timed out
     on_uds_pid_scan_timeout();
   }
-
   return false;
 }
 
@@ -113,7 +159,6 @@ bool UdsCanBattery::start_sequence(uint16_t state) {
     // A sequence is already queued: refuse.
     return false;
   }
-
   pending_seq_state = state;
   return true;
 }
@@ -125,12 +170,10 @@ bool UdsCanBattery::send_sequence_message(uint16_t state, SID sid, const uint8_t
     // blocks this priority: refuse.
     return false;
   }
-
   if (length > sizeof(seq_msg.data)) {
     // Payload doesn't fit the sequence buffer; refuse rather than truncate.
     return false;
   }
-
   if (timeout_ticks == 0) {
     // Timeout must be non-zero.
     return false;
@@ -144,6 +187,7 @@ bool UdsCanBattery::send_sequence_message(uint16_t state, SID sid, const uint8_t
   seq_msg.retries = 0;
   seq_msg.max_retries = max_retries;
   seq_msg.priority = priority;
+
   uds_send(sid, seq_msg.data, seq_msg.len, timeout_ticks);
   return true;
 }
@@ -188,12 +232,10 @@ bool UdsCanBattery::handle_incoming_uds_can_frame(CAN_frame rx) {
 
   // Pass down to the ISO-TP layer for reassembly.
   isotp_receive(rx.data.u8, rx.DLC, ISOTP_TATYPE_PHYSICAL);
-
   return true;
 }
 
 void UdsCanBattery::on_isotp_can_tx(uint32_t can_id, const uint8_t* can_data, uint8_t can_dlc) {
-
 #ifdef UDS_DEBUG
   logging.printf("UDS TX: ID=0x%03X DLC=%d data=", can_id, can_dlc);
   for (int i = 0; i < can_dlc; i++) {
@@ -242,7 +284,6 @@ bool UdsCanBattery::transmit_uds_pid_scan() {
   // next request in the PID scan cycle. The PID list is walked in order and
   // wraps around at the end; if handle_pid() requested a one-shot detour PID,
   // that is sent instead and the list walk resumes afterwards.
-
   if (pid_list == nullptr || pid_list_len == 0) {
     return false;
   }
@@ -273,7 +314,6 @@ bool UdsCanBattery::on_uds_pid_scan_response(uint8_t sid, const uint8_t* data, u
   // transaction is finished). Returns false if the message doesn't finish the
   // current PID transaction (unmatched frame, malformed response, or
   // ResponsePending, for which we keep waiting).
-
   const uint8_t id_bytes = pid_scan_id_bytes;
   const uint8_t value_offset = 1 + id_bytes;  // SID + identifier
 
@@ -294,7 +334,6 @@ bool UdsCanBattery::on_uds_pid_scan_response(uint8_t sid, const uint8_t* data, u
     }
     // Value starts after the identifier. Decode up to 4 bytes of value, big endian.
     uint32_t val = len > value_offset ? parseBigEndianValue(&data[value_offset], len - value_offset) : 0;
-
     // The handler returns 0 to advance the scan list, or a PID to query
     // out-of-sequence first (a one-shot detour).
     next_pid = handle_pid(did, val, &data[value_offset], len - value_offset);
@@ -317,19 +356,16 @@ bool UdsCanBattery::on_uds_pid_scan_response(uint8_t sid, const uint8_t* data, u
     pid_retries = 0;
     return true;
   }
-
   return false;
 }
 
 void UdsCanBattery::on_uds_pid_scan_timeout() {
   // Called when a PID scan request times out.
-
   pid_retries++;
   if (pid_retries < UDS_PID_MAX_RETRIES) {
     // Keep retrying...
     return;
   }
-
   // Move on to the next PID in the scan list.
   next_pid = 0;
   advance_pid_scan();
@@ -339,11 +375,9 @@ void UdsCanBattery::on_uds_pid_scan_timeout() {
 
 void UdsCanBattery::on_uds_receive(const uint8_t* data, uint16_t len) {
   // We've received a complete UDS response message.
-
   if (len < 1) {
     return;
   }
-
   const SID sid = (SID)data[0];
 
 #ifdef UDS_DEBUG
@@ -367,6 +401,7 @@ void UdsCanBattery::on_uds_receive(const uint8_t* data, uint16_t len) {
     // Is this a response to the in-flight sequence step (positive or negative)?
     const bool matched = (sid == UDS_RESPONSE_SID_OF(seq_msg.sid)) ||
                          (sid == kNegativeResponseSid && len >= 3 && data[1] == seq_msg.sid);
+
     if (matched && sid == kNegativeResponseSid &&
         data[2] == NegativeResponseCode::RequestCorrectlyReceived_ResponsePending) {
       // ResponsePending: the ECU is still working on the step. Keep waiting for
@@ -404,6 +439,14 @@ void UdsCanBattery::handle_sequence(uint16_t state, uint8_t sid, const uint8_t* 
   }
 }
 
+void UdsCanBattery::store_freeze_frame_failure(uint8_t marker_nrc) {
+  freeze_frame_result_code = freeze_frame_active_code;
+  freeze_frame_negative = true;
+  freeze_frame_nrc = marker_nrc;
+  freeze_frame_raw_len = 0;
+  freeze_frame_ready.store(true);  // publish last, after the data above is written
+}
+
 void UdsCanBattery::handle_internal_sequence(uint16_t state, uint8_t sid, const uint8_t* data, uint16_t len) {
   // Handle internal sequence responses.
   switch (state) {
@@ -421,7 +464,6 @@ void UdsCanBattery::handle_internal_sequence(uint16_t state, uint8_t sid, const 
         dtc->dtc_last_read_millis = millis();
       }
       break;
-
     case UDS_STATE_CLEAR_DTC_START:
       // Start a DTC clear sequence
       send_sequence_message(UDS_STATE_CLEAR_DTC, SID::ClearDiagnosticInformation, (const uint8_t*)"\xFF\xFF\xFF", 3,
@@ -429,6 +471,28 @@ void UdsCanBattery::handle_internal_sequence(uint16_t state, uint8_t sid, const 
       break;
     case UDS_STATE_CLEAR_DTC:
       // Positive response (0x54): nothing to do, the sequence has ended.
+      break;
+    case UDS_STATE_FREEZE_FRAME_START: {
+      // Start a generic DTC extended-data-record readout (0x19 0x06 <dtc> FF).
+      // Latch the code now so a newer request can't mislabel this one's result.
+      freeze_frame_active_code = freeze_frame_pending_code;
+      uint8_t req[5] = {0x06, static_cast<uint8_t>((freeze_frame_active_code >> 16) & 0xFF),
+                        static_cast<uint8_t>((freeze_frame_active_code >> 8) & 0xFF),
+                        static_cast<uint8_t>(freeze_frame_active_code & 0xFF), 0xFF};
+      if (!send_sequence_message(UDS_STATE_FREEZE_FRAME, SID::ReadDTCInformation, req, 5, UDS_TIMEOUT_READ_DTC, 1)) {
+        // Couldn't send (e.g. bus paused for an external tool): tell the UI.
+        store_freeze_frame_failure(FREEZE_FRAME_NRC_SEND_FAILED);
+      }
+      break;
+    }
+    case UDS_STATE_FREEZE_FRAME:
+      // Store whatever came back (positive or negative) for the code we asked about.
+      freeze_frame_result_code = freeze_frame_active_code;
+      freeze_frame_negative = (sid == kNegativeResponseSid);
+      freeze_frame_nrc = (freeze_frame_negative && len >= 3) ? data[2] : 0;
+      freeze_frame_raw_len = (len > sizeof(freeze_frame_raw)) ? sizeof(freeze_frame_raw) : (uint8_t)len;
+      memcpy(freeze_frame_raw, data, freeze_frame_raw_len);
+      freeze_frame_ready.store(true);  // publish last, after the data above is written
       break;
   }
 }
@@ -438,13 +502,15 @@ void UdsCanBattery::handle_dtc_response(const uint8_t* data, uint16_t len) {
     return;
 
   const bool is_kwp2000 = (pid_scan_id_bytes == 1);
-  const bool valid_header = is_kwp2000 ? (data[0] == 0x59) : (data[1] == 0x02);
+  // Check the length first so we never read data[1] of a too-short response.
+  const bool valid_header = len >= 2 && (is_kwp2000 ? (data[0] == 0x59) : (data[1] == 0x02));
 
-  if (len < 2 || !valid_header) {
+  if (!valid_header) {
     // Unexpected report type or a malformed response — treat as a failed readout.
     dtc->dtc_read_failed = true;
   } else {
     dtc->dtc_read_failed = false;
+
     int dtcStartIndex = is_kwp2000 ? 2 : 3;  // KWP2000 starts at offset 2, standard UDS skips 59 02 <mask>
     int availableBytes = len - dtcStartIndex;
     int maxDtcCount = availableBytes / 4;
@@ -461,10 +527,12 @@ void UdsCanBattery::handle_dtc_response(const uint8_t* data, uint16_t len) {
       // Bounds check to ensure we don't read beyond the buffer
       if (offset + 3 > len)
         break;
+
       // Combine 3 bytes into a single uint32
       uint32_t dtcCode =
           ((uint32_t)data[offset] << 16) | ((uint32_t)data[offset + 1] << 8) | (uint32_t)data[offset + 2];
       uint8_t dtcStatus = data[offset + 3];
+
       dtc->dtc_codes[i] = dtcCode;
       dtc->dtc_status[i] = dtcStatus;
     }
@@ -474,10 +542,8 @@ void UdsCanBattery::handle_dtc_response(const uint8_t* data, uint16_t len) {
 }
 
 // Low level UDS send
-
 void UdsCanBattery::uds_send(SID service_id, const uint8_t* data, uint16_t length, uint32_t timeout) {
   uint8_t payload[256];
-
   if (length >= sizeof(payload)) {
     return;
   }
@@ -540,4 +606,30 @@ void UdsCanBattery::read_DTC() {
 
 void UdsCanBattery::reset_DTC() {
   start_sequence(UDS_STATE_CLEAR_DTC_START);
+}
+
+void UdsCanBattery::request_dtc_freeze_frame(uint32_t dtc_code) {
+  // Set the new code and invalidate the old result *before* queueing, so the
+  // UDS tick can never pick up the sequence with a stale code. If the queue is
+  // already occupied, roll back so we don't disturb whatever is queued.
+  const uint32_t previous_code = freeze_frame_pending_code;
+  const bool previous_ready = freeze_frame_ready.load();
+  freeze_frame_pending_code = dtc_code;
+  freeze_frame_ready.store(false);
+  if (!start_sequence(UDS_STATE_FREEZE_FRAME_START)) {
+    freeze_frame_pending_code = previous_code;
+    freeze_frame_ready.store(previous_ready);
+  }
+}
+
+bool UdsCanBattery::get_freeze_frame_result(uint32_t dtc_code, bool& out_negative, uint8_t& out_nrc,
+                                            const uint8_t*& out_data, uint8_t& out_len) const {
+  if (!freeze_frame_ready.load() || freeze_frame_result_code != dtc_code) {
+    return false;  // not requested, or still pending
+  }
+  out_negative = freeze_frame_negative;
+  out_nrc = freeze_frame_nrc;
+  out_data = freeze_frame_raw;
+  out_len = freeze_frame_raw_len;
+  return true;
 }
