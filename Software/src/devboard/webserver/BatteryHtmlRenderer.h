@@ -1,11 +1,10 @@
 #ifndef _BATTERY_HTML_RENDERER_H
 #define _BATTERY_HTML_RENDERER_H
 
-#include "../../datalayer/datalayer.h"
-
 #include <Arduino.h>
 #include <WString.h>
 #include <stdio.h>
+#include "../../datalayer/datalayer.h"
 #include "checked_html.h"
 
 // Each battery can implement this interface to render more battery specific HTML
@@ -13,14 +12,17 @@
 class BatteryHtmlRenderer {
  public:
   virtual String get_status_html() = 0;
+
   // Optional diagnostics, rendered after the status buffer is released.
   // Empty means none unless html_render_failed() reports a failure.
   virtual String get_dtc_html() { return String(); }
+
   // Optional HTML streamed just before the button of the given battery command (the identifier
   // from battery_commands), for example to start a section of the page around that button. The
   // page keeps the status, diagnostics and buttons inside one battery-panel div, so closing it and
   // opening another is how a renderer splits its information into panels. Empty means nothing.
   virtual String get_command_prefix_html(const char* identifier) { return String(); }
+
   // Reports failure of the most recent status or diagnostics render.
   virtual bool html_render_failed() const { return false; }
 
@@ -35,13 +37,14 @@ class BatteryHtmlRenderer {
   static String render_dtc_section_html(DATALAYER_BATTERY_DTC_TYPE& dtc, const char* json_filename,
                                         bool standard_code_string) {
     CheckedHtml content;
-
     // Reserve enough space to avoid reallocs
-    content.reserve(3300 + dtc.dtc_count * 320);
+    content.reserve(3300 + dtc.dtc_count * 420);
+
     // Underline hugs the title instead of spanning the page
     content +=
         "<h4 style='margin:20px auto 0;width:fit-content;color:#27b06c;border-bottom:2px solid #27b06c;"
         "padding-bottom:5px;'>&#128295; Diagnostic Trouble Codes</h4>";
+
     if (dtc.dtc_last_read_millis == 0) {
       content += "<p style='color:#bbb;'>Not read yet &mdash; use the Read DTC button below to scan.</p>";
     } else if (dtc.dtc_read_failed) {
@@ -52,6 +55,7 @@ class BatteryHtmlRenderer {
       unsigned long age_s = (millis() - dtc.dtc_last_read_millis) / 1000;
       content +=
           "<p style='color:#bbb;'>" + String(dtc.dtc_count) + " codes &mdash; read " + String(age_s) + "s ago</p>";
+
       content += "<div style='overflow-x:auto;margin-bottom:12px;'>";
       content +=
           "<table style='margin:0 auto;text-align:left;border-collapse:separate;border-spacing:0;"
@@ -60,7 +64,8 @@ class BatteryHtmlRenderer {
           "<thead><tr style='background:linear-gradient(135deg,#667eea 0%,#764ba2 100%);color:#fff;'>"
           "<th style='padding:10px 18px;text-align:left;'>DTC</th>"
           "<th style='padding:10px 18px;text-align:left;'>Status</th>"
-          "<th style='padding:10px 18px;text-align:left;'>Description</th></tr></thead><tbody>";
+          "<th style='padding:10px 18px;text-align:left;'>Description</th>"
+          "<th style='padding:10px 18px;text-align:left;'>Freeze Frame</th></tr></thead><tbody>";
 
       const char SYS[5] = "PCBU";
       for (int i = 0; i < dtc.dtc_count; i++) {
@@ -93,6 +98,11 @@ class BatteryHtmlRenderer {
           statusColor = "#ff5252";
         }
 
+        // Hex code used for the freeze-frame probe regardless of how the DTC
+        // column itself is being displayed (SAE vs raw hex vs decimal match key).
+        char hexCode[7];
+        snprintf(hexCode, sizeof(hexCode), "%06lX", (unsigned long)code);
+
         content +=
             "<tr><td style='padding:8px 18px;border-top:1px solid #3a4750;font-family:monospace;"
             "font-weight:600;'>";
@@ -107,9 +117,34 @@ class BatteryHtmlRenderer {
             "</td>"
             "<td data-dtc-code='";
         content += matchKey;
-        content += "' style='padding:8px 18px;border-top:1px solid #3a4750;'>Unknown</td></tr>";
+        content += "' style='padding:8px 18px;border-top:1px solid #3a4750;'>Unknown</td>";
+        content += "<td style='padding:8px 18px;border-top:1px solid #3a4750;'>";
+        content += "<button onclick=\"checkFreezeFrame(this,'";
+        content += hexCode;
+        content += "')\">Check freeze frame</button>";
+        content +=
+            "<div class='ff-result' style='margin-top:4px;font-family:monospace;font-size:.85em;"
+            "color:#ccc;'></div>";
+        content += "</td></tr>";
       }
       content += "</tbody></table></div>";
+
+      // Freeze-frame button script. Currently targets the main battery only
+      // (battery index '0') - extending to battery2/battery3 rows would need
+      // this renderer to know which instance it's showing.
+      content +=
+          "<script>function checkFreezeFrame(btn,code){"
+          "var cell=btn.parentElement.querySelector('.ff-result');"
+          "cell.textContent='Requesting...';"
+          "fetch('/checkFreezeFrame',{method:'PUT',body:'0'+code}).then(function(){"
+          "var tries=0;function poll(){tries++;"
+          "fetch('/freezeFrameResult?battery=0&code='+code).then(function(r){return r.json();}).then(function(j){"
+          "if(j.ready){cell.textContent=j.negative?('Negative response, NRC=0x'+j.nrc):j.raw;}"
+          "else if(tries<8){setTimeout(poll,500);}else{cell.textContent='No response';}"
+          "});}"
+          "setTimeout(poll,500);"
+          "});}</script>";
+
       String loader = get_dtc_json_loader_html(GITHUB_RAW_BASE_URL, json_filename);
       if (loader.isEmpty()) {
         return String();
@@ -125,6 +160,7 @@ class BatteryHtmlRenderer {
   // or supply their own URL string for a different server/fork.
   static constexpr const char* GITHUB_RAW_BASE_URL =
       "https://raw.githubusercontent.com/dalathegreat/Battery-Emulator/main/web_data/dtc/";
+
   // Renders a status line + optional file-picker widget + JavaScript that fills
   // DTC descriptions into any table cell carrying a data-dtc-code attribute.
   // The attribute may hold either the decimal code (matched against the JSON
@@ -132,14 +168,15 @@ class BatteryHtmlRenderer {
   // the JSON "dtc" field, e.g. data-dtc-code='P0C9500'). JSON entries may carry
   // "code", "dtc", or both; the loader keys on whichever is present.
   //
-  // base_url:  Base URL for the JSON file, e.g. GITHUB_RAW_BASE_URL.
-  //             Pass "" (default) to skip the GitHub fetch.
-  // filename:  Single JSON filename under base_url, e.g. "meb_dtc.json"
-  //   On a successful GitHub fetch the file picker is hidden automatically.
-  //   On failure the file picker is revealed so the user can load a local copy.
+  // base_url: Base URL for the JSON file, e.g. GITHUB_RAW_BASE_URL.
+  //           Pass "" (default) to skip the GitHub fetch.
+  // filename: Single JSON filename under base_url, e.g. "meb_dtc.json"
+  //           On a successful GitHub fetch the file picker is hidden automatically.
+  //           On failure the file picker is revealed so the user can load a local copy.
   static String get_dtc_json_loader_html(const char* base_url = "", const char* filename = "") {
     CheckedHtml s;
     s.reserve(4096);  // avoid repeated 16-byte realloc steps while building the loader
+
     s += "<div style='margin-top:15px;padding:12px;background:#1e1e2e;border:1px solid #444;border-radius:8px;'>";
     s += "<p id='dtcJsonStatus' style='margin:0 0 8px 0;color:#aaa;font-size:.95em;'></p>";
     s += "<div id='dtcJsonFileContainer' style='display:none;'>";
@@ -164,14 +201,14 @@ class BatteryHtmlRenderer {
     // Identifier map (minified -> readable):
     //   u=url  k=cacheKey  S=statusEl  C=fileContainer  I=fileInput
     //   A=applyDtcs  P=showFilePicker  F=fetchFromGitHub
-    //   a=arr b=fromCache m=map L=cells n=matched t=td/text e=entry d=desc-html
-    //   g=cached f=file R=reader v=ev x=ex
+    //   a=arr  b=fromCache  m=map  L=cells  n=matched  t=td/text  e=entry  d=desc-html
+    //   g=cached  f=file  R=reader  v=ev  x=ex
     //
     // ORIGINAL (readable) JAVASCRIPT:
     /*
     <script>
     (function(){
-      var url = base_url + filename;          // injected at build time
+      var url = base_url + filename; // injected at build time
       var cacheKey = 'dtcJson:' + url;
       var statusEl = document.getElementById('dtcJsonStatus');
       var fileContainer = document.getElementById('dtcJsonFileContainer');
@@ -198,8 +235,8 @@ class BatteryHtmlRenderer {
         });
         var src = fromCache ? ' (cached)' : ' (fetched)';
         statusEl.innerHTML = 'Loaded ' + arr.length + ' entries, ' + matched + '/' + cells.length +
-          ' DTCs matched' + src +
-          '. <a href=\'#\' id=\'dtcRefresh\' style=\'color:#aaa;font-size:0.85em;\'>Refresh</a>';
+                              ' DTCs matched' + src +
+                              '. <a href=\'#\' id=\'dtcRefresh\' style=\'color:#aaa;font-size:0.85em;\'>Refresh</a>';
         statusEl.style.color = matched > 0 ? '#4CAF50' : '#ff9800';
         document.getElementById('dtcRefresh').addEventListener('click', function(e){
           e.preventDefault();
@@ -294,6 +331,7 @@ class BatteryHtmlRenderer {
          "catch(err){S.textContent='Parse error: '+err.message;S.style.color='#d32f2f';}};"
          "R.onerror=function(){S.textContent='File read error';S.style.color='#d32f2f';};"
          "R.readAsText(f);});})();</script>";
+
     return s.take();
   }
 };
