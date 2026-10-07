@@ -1,18 +1,17 @@
 #pragma once
 
+#include <atomic>
 #include "CanBattery.h"
 #include "freertos/FreeRTOS.h"
-
-#include <atomic>
 
 // Extend this class to add UDS features to a battery integration.
 //
 // 1. Call `setup_uds(uint32_t uds_address, uint32_t uds_response_address)` in
 //    your battery's setup() function to initialize UDS handling.
-//     - uds_address (the CAN ID of the ECU to query, e.g. 0x7DF for generic
-//       requests)
-//     - uds_response_address (the CAN ID that UDS responses must come from, or
-//       0 to auto-detect)
+//    - uds_address (the CAN ID of the ECU to query, e.g. 0x7DF for generic
+//      requests)
+//    - uds_response_address (the CAN ID that UDS responses must come from, or
+//      0 to auto-detect)
 //
 // 2. Call `set_pid_scan_list(const uint16_t* pids, uint16_t length)` to set the
 //    list of PIDs to query, in scan order (e.g. {0xF18A, 0xF120, ...}). The
@@ -35,34 +34,33 @@
 // 5. Override `handle_pid(uint16_t pid, uint32_t value, const uint8_t* data,
 //    uint16_t length)` to be passed successful PID query responses. The
 //    arguments are:
-//     - pid: the PID that the response is for
-//     - value: the value of the PID (big-endian, truncated to four bytes if the
-//       response is longer)
-//     - data: the raw data bytes of the value
-//     - length: the length of the value in bytes Only successful responses are
-//       passed to handle_pid - failed requests (timeouts, negative responses)
-//       are retried and then skipped without notifying the handler. Return 0 to
-//       continue with the next PID in the scan list, or return a PID to request
-//       it once out-of-sequence first (e.g. to sample a fast-changing PID more
-//       often), after which the scan list resumes where it left off.
+//    - pid: the PID that the response is for
+//    - value: the value of the PID (big-endian, truncated to four bytes if the
+//      response is longer)
+//    - data: the raw data bytes of the value
+//    - length: the length of the value in bytes Only successful responses are
+//      passed to handle_pid - failed requests (timeouts, negative responses)
+//      are retried and then skipped without notifying the handler. Return 0 to
+//      continue with the next PID in the scan list, or return a PID to request
+//      it once out-of-sequence first (e.g. to sample a fast-changing PID more
+//      often), after which the scan list resumes where it left off.
 //
 // SEQUENCES
 //
 // Multi-step UDS operations (resets, writes, routine control, security access,
 // ...) are built from sequences of steps.
-//   - Define an enum with a state for each step in your sequences.
-//   - Start a sequence with `start_sequence(STARTING_STATE)`
-//   - Override `on_uds_sequence_step(state, sid, data, len)` to handle any
-//     response and send the next step.
-//   - Optionally override `on_uds_sequence_timeout(state)` to handle a step
-//     timing out (the superclass retries automatically).
+// - Define an enum with a state for each step in your sequences.
+// - Start a sequence with `start_sequence(STARTING_STATE)`
+// - Override `on_uds_sequence_step(state, sid, data, len)` to handle any
+//   response and send the next step.
+// - Optionally override `on_uds_sequence_timeout(state)` to handle a step
+//   timing out (the superclass retries automatically).
 
 class UdsCanBattery;
 
 // Default HTML renderer for UDS batteries. Avoids needing a custom renderer
 // class for simple UDS batteries that just show some basic information above
 // the DTC section.
-
 class UdsBatteryHtmlRenderer : public BatteryHtmlRenderer {
  public:
   explicit UdsBatteryHtmlRenderer(UdsCanBattery& battery) : battery(battery) {}
@@ -79,20 +77,36 @@ class UdsBatteryHtmlRenderer : public BatteryHtmlRenderer {
 
 class UdsCanBattery : public CanBattery, public IsoTp {
  public:
-  UdsCanBattery(CAN_Speed speed = CAN_Speed::CAN_SPEED_500KBPS) : CanBattery(speed), uds_renderer(*this) {}
+  UdsCanBattery(CAN_Speed speed = CAN_Speed::CAN_SPEED_500KBPS) : CanBattery(speed), uds_renderer(*this) {
+    register_uds_instance();
+  }
   UdsCanBattery(CAN_Interface interface, CAN_Speed speed = CAN_Speed::CAN_SPEED_500KBPS)
-      : CanBattery(interface, speed), uds_renderer(*this) {}
+      : CanBattery(interface, speed), uds_renderer(*this) {
+    register_uds_instance();
+  }
+  virtual ~UdsCanBattery() { unregister_uds_instance(); }
+
+  // RTTI-free replacement for dynamic_cast<UdsCanBattery*>(battery): returns
+  // the matching UdsCanBattery, or nullptr if `b` is null or isn't a UDS
+  // battery. Works by comparing against the registered UdsCanBattery
+  // instances, so it needs neither -frtti nor changes to the Battery base.
+  static UdsCanBattery* from_battery(Battery* b);
 
   // Sequence step states for our own functions. Internal states here should
   // have the UDS_STATE_INTERNAL bit set, subclass states should not.
   enum UdsState : uint16_t {
     UDS_STATE_IDLE = 0,
     UDS_STATE_INTERNAL = 0x8000,
+
     // Superclass-internal sequences.
     UDS_STATE_READ_DTC_START = UDS_STATE_INTERNAL | 0x01,
     UDS_STATE_READ_DTC,  // 0x19 0x02
     UDS_STATE_CLEAR_DTC_START = UDS_STATE_INTERNAL | 0x03,
     UDS_STATE_CLEAR_DTC,  // 0x14 FF FF FF
+    UDS_STATE_FREEZE_FRAME_START = UDS_STATE_INTERNAL | 0x05,
+    UDS_STATE_FREEZE_FRAME,  // 0x19 0x06 <dtc>
+    UDS_STATE_SOFT_RESET_START = UDS_STATE_INTERNAL | 0x07,
+    UDS_STATE_SOFT_RESET,  // 0x11 0x03
   };
 
   // Priority levels for UDS traffic, used by pause_uds() and
@@ -124,16 +138,34 @@ class UdsCanBattery : public CanBattery, public IsoTp {
   virtual void read_DTC();
   virtual void reset_DTC();
 
+  // Requests extended DTC data (UDS 0x19 0x06) for an arbitrary 3-byte DTC
+  // code (e.g. 0xD11800). Works for any UdsCanBattery subclass without any
+  // subclass changes. Call get_freeze_frame_result() afterwards (it may take
+  // a couple of seconds for the ECU to respond) to read the outcome. If
+  // another sequence request is already queued when this is called, the
+  // request is dropped silently - the caller can just try again.
+  void request_dtc_freeze_frame(uint32_t dtc_code);
+
+  // Returns true and fills the outputs if a result for exactly this dtc_code
+  // is available (whether positive or negative). Returns false while the
+  // request is still pending or if this code was never requested.
+  //
+  // Negative results with an NRC of 0xFE (request could not be sent) or 0xFF
+  // (no response from the ECU / timeout) are our own markers, not real UDS
+  // negative response codes.
+  bool get_freeze_frame_result(uint32_t dtc_code, bool& out_negative, uint8_t& out_nrc, const uint8_t*& out_data,
+                               uint8_t& out_len) const;
+
   // Advanced battery page (see UdsBatteryHtmlRenderer). The built-in renderer
   // shows the DTC section; override these hooks to customize it without
   // writing a whole renderer class:
-  //  - get_uds_info_html(): HTML displayed above the DTC section (e.g. UDS
-  //    address, VIN, raw PID payloads).
-  //  - get_dtc_json_filename(): DTC description JSON file under
-  //    BatteryHtmlRenderer::GITHUB_RAW_BASE_URL, or "" to only offer the
-  //    local file picker.
-  //  - get_dtc_standard_code_string(): false for raw 6-digit hex codes, true
-  //    for SAE-format codes (e.g. P0C9500).
+  // - get_uds_info_html(): HTML displayed above the DTC section (e.g. UDS
+  //   address, VIN, raw PID payloads).
+  // - get_dtc_json_filename(): DTC description JSON file under
+  //   BatteryHtmlRenderer::GITHUB_RAW_BASE_URL, or "" to only offer the
+  //   local file picker.
+  // - get_dtc_standard_code_string(): false for raw 6-digit hex codes, true
+  //   for SAE-format codes (e.g. P0C9500).
   virtual String get_uds_info_html() { return String(); }
   virtual const char* get_dtc_json_filename() { return ""; }
   virtual bool get_dtc_standard_code_string() { return true; }
@@ -153,15 +185,21 @@ class UdsCanBattery : public CanBattery, public IsoTp {
  protected:
   // Initializes the UDS layer. Must be called by subclasses in their setup() function. Has optional isFD overload
   void setup_uds(uint32_t uds_address, uint32_t uds_response_address, bool isFD = false);
+
   // Set (or change) the list of PIDs to scan, in order. The list is cycled
   // repeatedly - the scan restarts from the beginning of the new list.
   void set_pid_scan_list(const uint16_t* pid_list, uint16_t length);
+
   // Set (or change) the wire format used by the PID scan (default:
   // TwoByteDID).
   void set_pid_scan_mode(PidScanMode mode);
 
+  // Queue a one-shot UDS soft reset (0x11 0x03). The request is not retried.
+  bool request_uds_soft_reset();
+
   // Must be called by subclasses inside their `transmit_can` method.
   void transmit_uds_can(unsigned long currentMillis);
+
   // Must be called by subclasses inside their `handle_incoming_can_frame` method.
   bool handle_incoming_uds_can_frame(CAN_frame rx_frame);
 
@@ -222,15 +260,28 @@ class UdsCanBattery : public CanBattery, public IsoTp {
   }
 
   void uds_send(SID service_id, const uint8_t* data, uint16_t length, uint32_t timeout = 0);
+
   bool transmit_uds_pid_scan();
   bool on_uds_pid_scan_response(uint8_t sid, const uint8_t* data, uint16_t len);
   void on_uds_pid_scan_timeout();
   void on_uds_receive(const uint8_t* data, uint16_t len);
   void handle_dtc_response(const uint8_t* data, uint16_t len);
+
   // Dispatches responses for sequence states
   void handle_sequence(uint16_t state, uint8_t sid, const uint8_t* data, uint16_t len);
   // Dispatches responses for superclass-internal sequence states.
   void handle_internal_sequence(uint16_t state, uint8_t sid, const uint8_t* data, uint16_t len);
+
+  // Stores a "no real response" freeze-frame result (negative, with our own
+  // marker NRC, no data) for the request currently in flight.
+  void store_freeze_frame_failure(uint8_t marker_nrc);
+
+  // Intrusive list of all UdsCanBattery instances, used by from_battery().
+  static UdsCanBattery* uds_instances_head;
+  UdsCanBattery* next_uds_instance = nullptr;
+  void register_uds_instance();
+  void unregister_uds_instance();
+
   // The request currently in flight as part of a sequence.
   struct {
     uint8_t sid;
@@ -247,10 +298,12 @@ class UdsCanBattery : public CanBattery, public IsoTp {
   static const uint16_t MAX_UDS_RESPONSE_ID = 0x7EF;
 
   uint32_t previousUdsMillis100 = 0;
+
   // The request SID and identifier width used by the PID scan, derived from
   // the scan mode in set_pid_scan_mode() (default: UDS 0x22 / two bytes).
   uint8_t pid_scan_sid = static_cast<uint8_t>(SID::ReadDataByIdentifier);
   uint8_t pid_scan_id_bytes = 2;
+
   // The list of PIDs to scan, in order. Set with set_pid_scan_list(). The list
   // is walked from start to end, then wraps around to the beginning.
   const uint16_t* pid_list = nullptr;
@@ -268,6 +321,7 @@ class UdsCanBattery : public CanBattery, public IsoTp {
   uint16_t pending_pid = 0;
   // How many times we've retried the current PID request.
   uint32_t pid_retries = 0;
+
   // Current position in the active sequence, or UDS_STATE_IDLE if no sequence
   // is active. Set by send_sequence_message(), cleared when the response is
   // dispatched or the step's retry budget is exhausted.
@@ -281,11 +335,30 @@ class UdsCanBattery : public CanBattery, public IsoTp {
   // The highest priority blocked by the current pause (pause_uds() second
   // argument).
   UdsPriority seq_pause_level = UdsPriority::PidScan;
+
   // How many ticks left for the current request to complete, before it is
   // retried (or given up).
   int32_t uds_transaction_timeout = 0;
+
   // Should the PID message be sent with CAN-FD flag enabled?
   bool send_messages_asFD = false;
+
+  // --- Generic DTC freeze-frame / extended-data probe state ---
+  // freeze_frame_pending_code: the code most recently requested by the user.
+  // freeze_frame_active_code:  the code of the request actually in flight
+  //                            (latched when the sequence starts).
+  // freeze_frame_result_code:  the code the stored result belongs to.
+  // freeze_frame_ready:        true once a result (positive, negative or a
+  //                            failure marker) has been stored for the latest
+  //                            request; cleared when a new request is queued.
+  uint32_t freeze_frame_pending_code = 0;
+  uint32_t freeze_frame_active_code = 0;
+  uint32_t freeze_frame_result_code = 0;
+  std::atomic<bool> freeze_frame_ready{false};
+  bool freeze_frame_negative = false;
+  uint8_t freeze_frame_nrc = 0;
+  uint8_t freeze_frame_raw[32] = {};
+  uint8_t freeze_frame_raw_len = 0;
 
   UdsBatteryHtmlRenderer uds_renderer;
 };

@@ -7,21 +7,6 @@
 #include "../devboard/utils/events.h"
 #include "../devboard/utils/logging.h"
 #include "../system_settings.h"
-namespace {
-constexpr uint8_t MAX_21A_LOG_ENTRIES = 50;
-
-struct Can21AByte4LogEntry {
-  uint32_t time_ms;
-  uint8_t value;
-};
-
-Can21AByte4LogEntry can21a_byte4_log[MAX_21A_LOG_ENTRIES] = {};
-uint8_t can21a_byte4_log_count = 0;
-uint8_t can21a_byte4_log_write_index = 0;
-
-uint8_t can21a_byte4_last_value = 0;
-bool can21a_byte4_valid = false;
-}  // namespace
 
 // Function to estimate SOC based on cell voltage
 uint16_t KiaEGmpBattery::estimateSOCFromCell(uint16_t cellVoltage) {
@@ -219,6 +204,132 @@ uint16_t KiaEGmpBattery::transmit_checksum_xor(uint16_t can_id) const {
     case 0x350:
     case 0x3B5:
       return 0xAF38;
+    case 0x145:
+    case 0x16A:
+    case 0x1A0:
+    case 0x1B0:
+    case 0x1F1:
+    case 0x1F2:
+    case 0x1F3:
+    case 0x1F4:
+    case 0x1F6:
+    case 0x1F7:
+    case 0x1F8:
+    case 0x1F9:
+    case 0x1FA:
+    case 0x1FB:
+    case 0x1FC:
+    case 0x1FD:
+    case 0x1FE:
+      return 0x8F7A;
+    case 0x201:
+    case 0x202:
+    case 0x255:
+    case 0x2AA:
+      return 0xBF19;
+    case 0x0A0:
+    case 0x0DA:
+      return 0x819D;
+    case 0x115:
+    case 0x180:
+    case 0x185:
+      return 0x4F08;
+    case 0x125:
+    case 0x130:
+    case 0x1AA:
+    case 0x1E5:
+    case 0x1F0:
+      return 0x143C;
+    case 0x175:
+    case 0x1BA:
+      return 0x91BC;
+    case 0x205:
+    case 0x250:
+      return 0xA1DF;
+    case 0x20A:
+    case 0x225:
+      return 0x245F;
+    case 0x27A:
+      return 0xE20C;
+    case 0x305:
+    case 0x3F0:
+      return 0xAF38;
+    case 0x315:
+    case 0x3A0:
+      return 0x347E;
+    case 0x380:
+    case 0x382:
+    case 0x383:
+    case 0x384:
+    case 0x385:
+      return 0x6F4A;
+    case 0x395:
+      return 0xB1FE;
+    case 0x3C1:
+      return 0x0351;
+    case 0x3C2:
+      return 0x17C5;
+    case 0x3E0:
+      return 0xFF59;
+    case 0x3E1:
+      return 0x5EA4;
+    case 0x405:
+      return 0xC195;
+    case 0x411:
+      return 0x6345;
+    case 0x412:
+      return 0xFDA9;
+    case 0x413:
+      return 0x43E9;
+    case 0x414:
+      return 0xB76A;
+    case 0x416:
+      return 0xA980;
+    case 0x417:
+      return 0xD6F5;
+    case 0x418:
+      return 0x1085;
+    case 0x422:
+      return 0xA09B;
+    case 0x437:
+      return 0x9C02;
+    case 0x444:
+      return 0x4D40;
+    case 0x480:
+      return 0xDFDF;
+    case 0x48F:
+      return 0xE909;
+    case 0x4B4:
+      return 0x9DA8;
+    case 0x4B5:
+      return 0xB539;
+    case 0x4B7:
+      return 0xD35B;
+    case 0x4CC:
+      return 0xFC01;
+    case 0x4D8:
+      return 0x72CD;
+    case 0x4DD:
+      return 0xDD78;
+    case 0x4E7:
+      return 0x51F5;
+    case 0x4E9:
+      return 0xAA2A;
+    case 0x4EA:
+      return 0xFF79;
+    case 0x4EC:
+      return 0xF29C;
+    case 0x4ED:
+      return 0x82CE;
+    case 0x4EE:
+      return 0xCC42;
+    case 0x4EF:
+      return 0x943C;
+    case 0x4FE:
+      return 0x3014;
+    case 0x641:
+      return 0x7679;
+    // 0x035, 0x060, 0x065, 0x090, 0x0B0, 0x0F5 already resolve correctly via default (0x9F5B)
     default:
       return 0x9F5B;
   }
@@ -368,7 +479,8 @@ void KiaEGmpBattery::update_values() {
     datalayer.battery.status.real_soc =
         estimateSOC(batteryVoltage, datalayer.battery.info.number_of_cells, batteryAmps);
   } else {
-    datalayer.battery.status.real_soc = (SOC_Display * 10);  //increase SOC range from 0-100.0 -> 100.00
+    // datalayer.battery.status.real_soc = (SOC_Display * 10);  //increase SOC range from 0-100.0 -> 100.00
+    datalayer.battery.status.real_soc = (SOC_BMS * 10);  //increase SOC range from 0-100.0 -> 100.00
   }
 
   datalayer.battery.status.soh_pptt = (batterySOH * 10);  //Increase decimals from 100.0% -> 100.00%
@@ -441,6 +553,24 @@ String KiaEGmpBattery::get_uds_info_html() {
   String content;
   content.reserve(1600);
 
+  const char* contactor_status = "Unknown (no 0x21A data)";
+  if (contactorStatus21AValid) {
+    switch (contactorStatus21A) {
+      case 0xFE:
+        contactor_status = "Open";
+        break;
+      case 0x03:
+        contactor_status = "Precharge";
+        break;
+      case 0x01:
+        contactor_status = "Closed";
+        break;
+      default:
+        contactor_status = "Unknown";
+        break;
+    }
+  }
+
   // clang-format off
   content << "<h3>BATTERY_MGMT</h3>"
               "<h4>Cells: " << String(datalayer.battery.info.number_of_cells) << "</h4>"
@@ -466,72 +596,21 @@ String KiaEGmpBattery::get_uds_info_html() {
               "<h4>Operation Time: " << String(opTime) << " s</h4>"
               "<h4>BMS ignition: " << String(BMS_ign) << "</h4>"
               "<h4>BMS Main Relay: " << String(batteryRelay) << "</h4>";
-  content << "<h3>0x21A BYTE 4 CHANGE LOG</h3>";
-
-  if (can21a_byte4_log_count == 0) {
-    content << "<h4>No changes recorded</h4>";
-  } else {
-    uint8_t start_index;
-
-    if (can21a_byte4_log_count < MAX_21A_LOG_ENTRIES) {
-      start_index = 0;
-    } else {
-      start_index = can21a_byte4_log_write_index;
+  content << "<h4>Contactor status (0x21A byte 4): " << contactor_status;
+  if (contactorStatus21AValid) {
+    content << " (0x";
+    if (contactorStatus21A < 0x10) {
+      content << "0";
     }
-
-    for (uint8_t n = 0; n < can21a_byte4_log_count; n++) {
-      uint8_t index =
-          (start_index + n) % MAX_21A_LOG_ENTRIES;
-
-      const Can21AByte4LogEntry& entry = can21a_byte4_log[index];
-
-      content << "<div>"
-              << String(entry.time_ms / 1000.0f, 1)
-              << "s - 0x";
-
-      if (entry.value < 0x10) {
-        content << "0";
-      }
-
-      content << String(entry.value, HEX)
-              << "</div>";
-    }
+    content << String(contactorStatus21A, HEX) << ")";
   }
-
+  content << "</h4>";
   return content;
 }
 
-void KiaEGmpBattery::handle_0x21A(const CAN_frame& rx_frame) {
-  if (rx_frame.DLC < 5) {
-    return;
-  }
-
-  // Byte 4 of the CAN frame.
-  const uint8_t value = rx_frame.data.u8[4];
-
-  // First received value establishes the baseline.
-  // Don't create a log entry until it actually changes.
-  if (can21a_byte4_valid && value == can21a_byte4_last_value) {
-    return;
-  }
-
-  can21a_byte4_last_value = value;
-  can21a_byte4_valid = true;
-
-  Can21AByte4LogEntry& entry =
-      can21a_byte4_log[can21a_byte4_log_write_index];
-
-  entry.time_ms = millis();
-  entry.value = value;
-
-  can21a_byte4_log_write_index++;
-
-  if (can21a_byte4_log_write_index >= MAX_21A_LOG_ENTRIES) {
-    can21a_byte4_log_write_index = 0;
-  }
-
-  if (can21a_byte4_log_count < MAX_21A_LOG_ENTRIES) {
-    can21a_byte4_log_count++;
+void KiaEGmpBattery::reset_BMS() {
+  if (!request_uds_soft_reset()) {
+    logging.println("UDS soft reset request could not be queued");
   }
 }
 
@@ -560,7 +639,10 @@ void KiaEGmpBattery::handle_incoming_can_frame(CAN_frame rx_frame) {
       break;
     case 0x21A:
       datalayer.battery.status.CAN_battery_still_alive = CAN_STILL_ALIVE;
-      handle_0x21A(rx_frame);
+      if (rx_frame.DLC >= 5) {
+        contactorStatus21A = rx_frame.data.u8[4];
+        contactorStatus21AValid = true;
+      }
       break;
     case 0x235:
       datalayer.battery.status.CAN_battery_still_alive = CAN_STILL_ALIVE;
@@ -691,6 +773,60 @@ break;
   return 0;  //Continue scanning the PID list in order
 }
 
+void KiaEGmpBattery::transmit_candidate_actuator_messages(uint32_t tick10ms) {
+  static uint8_t candidate_last_counter[candidate_actuator_message_count] = {};
+  static bool candidate_counter_valid[candidate_actuator_message_count] = {};
+
+  static const uint16_t group_10ms[] = {0x035, 0x060, 0x065, 0x0A0, 0x0B0, 0x0DA, 0x0F5, 0x115, 0x125};
+  static const uint16_t group_20ms[] = {0x145, 0x16A, 0x175, 0x180, 0x185, 0x1A0, 0x1AA, 0x1B0};
+  static const uint16_t group_50ms[] = {0x130, 0x1BA, 0x1F0, 0x3FF};
+  static const uint16_t group_100ms[] = {0x090, 0x1FA, 0x205, 0x20A, 0x225, 0x250, 0x255, 0x27A, 0x2AA, 0x385};
+  static const uint16_t group_200ms[] = {0x1E5, 0x315, 0x380, 0x382, 0x383, 0x384, 0x395, 0x3A0, 0x3C1, 0x3C2, 0x3E0, 0x3E1, 0x405, 0x411, 0x412, 0x413, 0x414, 0x416, 0x417, 0x418, 0x422, 0x437, 0x444, 0x4B4, 0x4B5, 0x4B7, 0x4CC, 0x4D8, 0x4DD, 0x4E7, 0x4E9, 0x4EA, 0x4EC, 0x4ED, 0x4EE, 0x4EF, 0x641};
+  static const uint16_t group_1000ms[] = {0x1F1, 0x1F2, 0x1F3, 0x1F4, 0x1F6, 0x1F7, 0x1F8, 0x1F9, 0x1FB, 0x1FC, 0x1FD, 0x1FE, 0x201, 0x202, 0x305, 0x3F0, 0x480, 0x48F};
+  static const uint16_t group_2000ms[] = {0x4FE};
+
+  auto send_group = [this](const uint16_t* ids, uint8_t count) {
+    for (uint8_t i = 0; i < count; i++) {
+      for (uint8_t j = 0; j < candidate_actuator_message_count; j++) {
+        if (candidate_actuator_messages[j].ID == ids[i]) {
+          CAN_frame frame = candidate_actuator_messages[j];
+          uint8_t next_counter = candidate_counter_valid[j]
+                                      ? static_cast<uint8_t>(candidate_last_counter[j] + 1u)
+                                      : frame.data.u8[2];
+          candidate_counter_valid[j] = true;
+          candidate_last_counter[j] = next_counter;
+          frame.data.u8[2] = next_counter;
+          uint16_t checksum = calculate_transmit_checksum(frame);
+          frame.data.u8[0] = static_cast<uint8_t>(checksum);
+          frame.data.u8[1] = static_cast<uint8_t>(checksum >> 8);
+          transmit_can_frame(&frame);
+          break;
+        }
+      }
+    }
+  };
+
+  // send_group(group_10ms, 9);
+  // if ((tick10ms % 2) == 0) {
+  //   send_group(group_20ms, 8);
+  // }
+  // if ((tick10ms % 5) == 0) {
+  //   send_group(group_50ms, 4);
+  // }
+  if ((tick10ms % 10) == 0) {
+    send_group(group_100ms, 10);
+  }
+  // if ((tick10ms % 20) == 0) {
+  //   send_group(group_200ms, 37);
+  // }
+  // if ((tick10ms % 100) == 0) {
+  //   send_group(group_1000ms, 18);
+  // }
+  if ((tick10ms % 200) == 0) {
+    send_group(group_2000ms, 1);
+  }
+}
+
 void KiaEGmpBattery::transmit_can(unsigned long currentMillis) {
   if (startedUp) {
     if (startupSequenceRequested || (!startupSequenceComplete && !startupSequenceActive)) {
@@ -749,6 +885,7 @@ void KiaEGmpBattery::transmit_can(unsigned long currentMillis) {
       }
 
       transmit10msCount++;
+      transmit_candidate_actuator_messages(transmit10msCount);
     }
     }
 
