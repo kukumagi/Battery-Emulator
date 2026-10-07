@@ -495,7 +495,8 @@ void KiaEGmpBattery::update_values() {
     datalayer.battery.status.real_soc =
         estimateSOC(batteryVoltage, datalayer.battery.info.number_of_cells, batteryAmps);
   } else {
-    datalayer.battery.status.real_soc = (SOC_Display * 10);  //increase SOC range from 0-100.0 -> 100.00
+    // datalayer.battery.status.real_soc = (SOC_Display * 10);  //increase SOC range from 0-100.0 -> 100.00
+    datalayer.battery.status.real_soc = (SOC_BMS * 10);  //increase SOC range from 0-100.0 -> 100.00
   }
 
   datalayer.battery.status.soh_pptt = (batterySOH * 10);  //Increase decimals from 100.0% -> 100.00%
