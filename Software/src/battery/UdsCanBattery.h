@@ -105,6 +105,8 @@ class UdsCanBattery : public CanBattery, public IsoTp {
     UDS_STATE_CLEAR_DTC,  // 0x14 FF FF FF
     UDS_STATE_FREEZE_FRAME_START = UDS_STATE_INTERNAL | 0x05,
     UDS_STATE_FREEZE_FRAME,  // 0x19 0x06 <dtc>
+    UDS_STATE_SOFT_RESET_START = UDS_STATE_INTERNAL | 0x07,
+    UDS_STATE_SOFT_RESET,  // 0x11 0x03
   };
 
   // Priority levels for UDS traffic, used by pause_uds() and
@@ -191,6 +193,9 @@ class UdsCanBattery : public CanBattery, public IsoTp {
   // Set (or change) the wire format used by the PID scan (default:
   // TwoByteDID).
   void set_pid_scan_mode(PidScanMode mode);
+
+  // Queue a one-shot UDS soft reset (0x11 0x03). The request is not retried.
+  bool request_uds_soft_reset();
 
   // Must be called by subclasses inside their `transmit_can` method.
   void transmit_uds_can(unsigned long currentMillis);

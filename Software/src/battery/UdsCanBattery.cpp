@@ -494,6 +494,14 @@ void UdsCanBattery::handle_internal_sequence(uint16_t state, uint8_t sid, const 
       memcpy(freeze_frame_raw, data, freeze_frame_raw_len);
       freeze_frame_ready.store(true);  // publish last, after the data above is written
       break;
+    case UDS_STATE_SOFT_RESET_START: {
+      const uint8_t reset_type = 0x03;
+      send_sequence_message(UDS_STATE_SOFT_RESET, SID::ECUReset, &reset_type, 1, 10, 0);
+      break;
+    }
+    case UDS_STATE_SOFT_RESET:
+      // The reset request is complete on either a positive or negative response.
+      break;
   }
 }
 
@@ -606,6 +614,10 @@ void UdsCanBattery::read_DTC() {
 
 void UdsCanBattery::reset_DTC() {
   start_sequence(UDS_STATE_CLEAR_DTC_START);
+}
+
+bool UdsCanBattery::request_uds_soft_reset() {
+  return !uds_is_busy() && start_sequence(UDS_STATE_SOFT_RESET_START);
 }
 
 void UdsCanBattery::request_dtc_freeze_frame(uint32_t dtc_code) {
