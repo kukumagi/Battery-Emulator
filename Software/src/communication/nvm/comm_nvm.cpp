@@ -2,7 +2,9 @@
 #include <esp_phy_init.h>  // esp_phy_erase_cal_data_in_nvs()
 #include "../../battery/BATTERIES.h"
 #include "../../battery/Battery.h"
+#ifndef SMALL_FLASH_DEVICE  // Chargers are left out of the small flash devices
 #include "../../charger/CanCharger.h"
+#endif  // SMALL_FLASH_DEVICE
 #include "../../communication/can/comm_can.h"
 #include "../../datalayer/datalayer_extended.h"
 #include "../../devboard/mqtt/mqtt.h"
@@ -111,7 +113,9 @@ void init_stored_settings() {
   user_selected_battery_chemistry =
       (battery_chemistry_enum)settings.getUInt("BATTCHEM", (int)battery_chemistry_enum::NCA);
   user_selected_inverter_protocol = (InverterProtocolType)settings.getUInt("INVTYPE", (int)InverterProtocolType::None);
+#ifndef SMALL_FLASH_DEVICE
   user_selected_charger_type = (ChargerType)settings.getUInt("CHGTYPE", (int)ChargerType::None);
+#endif  // SMALL_FLASH_DEVICE
   user_selected_shunt_type = (ShuntType)settings.getUInt("SHUNTTYPE", (int)ShuntType::None);
 #ifdef SMALL_FLASH_DEVICE
   // A shunt type left out of this build (the CHAdeMO CT clamp) reads as none
@@ -194,7 +198,9 @@ void init_stored_settings() {
   can_config.battery_double = readIf("BATT2COMM");
   can_config.battery_triple = readIf("BATT3COMM");
   can_config.inverter = readIf("INVCOMM");
+#ifndef SMALL_FLASH_DEVICE
   can_config.charger = readIf("CHGCOMM");
+#endif  // SMALL_FLASH_DEVICE
   can_config.shunt = readIf("SHUNTCOMM");
 
   equipment_stop_behavior = (STOP_BUTTON_BEHAVIOR)settings.getUInt("EQSTOP", (int)STOP_BUTTON_BEHAVIOR::NOT_CONNECTED);
@@ -261,12 +267,15 @@ void init_stored_settings() {
   //Some early integrations need manually set allowed charge/discharge power
   datalayer.battery.status.override_charge_power_W = settings.getUInt("CHGPOWER", 1000);
   datalayer.battery.status.override_discharge_power_W = settings.getUInt("DCHGPOWER", 1000);
-  // Battery 2 reuses battery 1's manual power settings: update_calculated_values() caps the
-  // combined system's max charge/discharge power to whichever battery reports less, so leaving
-  // these at their unset default of 0 would silently zero out the whole system for double-battery
-  // setups using the same "estimated power" integrations as above.
+  // Battery 2/3 reuse battery 1's manual power settings: battery_aggregate.cpp's
+  // update_aggregate_limits() caps the combined system's max charge/discharge power to whichever
+  // battery reports less, so leaving these at their unset default of 0 would silently zero out the
+  // whole system for double/triple-battery setups using the same "estimated power" integrations as
+  // above.
   datalayer.battery2.status.override_charge_power_W = settings.getUInt("CHGPOWER", 1000);
   datalayer.battery2.status.override_discharge_power_W = settings.getUInt("DCHGPOWER", 1000);
+  datalayer.battery3.status.override_charge_power_W = settings.getUInt("CHGPOWER", 1000);
+  datalayer.battery3.status.override_discharge_power_W = settings.getUInt("DCHGPOWER", 1000);
 
   // WIFI AP is enabled by default unless disabled in the settings
   wifiap_enabled = settings.getBool("WIFIAPENABLED", true);
@@ -321,6 +330,12 @@ void init_stored_settings() {
   qnhck_zero_mV = qnhck_zero_plausible(temp) ? temp : QNHCK_NOMINAL_ZERO_MV;
   // Only the off state of the automatic calibration is ever stored
   qnhck_auto_calibration = settings.getBool("QNHAUTOCAL", true);
+  // The zero point's temperature drift, within what the setting allows. Only stored when not 0.
+  int32_t tempco = settings.getInt("QNHTC", 0);
+  if (tempco > QNHCK_MAX_TEMPCO_UV_PER_C || tempco < -QNHCK_MAX_TEMPCO_UV_PER_C) {
+    tempco = 0;
+  }
+  qnhck_zero_tempco_uV_per_C = (int16_t)tempco;
 #endif  // SMALL_FLASH_DEVICE
 
   datalayer_extended.bydAtto3.auto_calibrate_soc_drift_percent =
