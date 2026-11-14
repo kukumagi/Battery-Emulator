@@ -278,6 +278,22 @@ void KiaEGmpBattery::apply_dc_link_voltage(CAN_frame& frame) {
       frame.data.u8[16] = static_cast<uint8_t>((live_pack_voltage_V >> 8) & 0xFF);
       break;
 
+    case 0x320: {
+      // Observed on the reference charge capture: byte 7 tracks SOC in
+      // 0.5% steps (for example 0xB8..0xC0 while SOC rises from ~92..96%).
+      // real_soc is hundredths of a percent, so divide by 50 to get the
+      // transmitted 0.5%-per-bit value. Keep the payload in the observed
+      // 0..100% range (0..200).
+      uint16_t soc_hundredths = datalayer.battery.status.real_soc;
+      if (soc_hundredths == 0 && SOC_BMS > 0) {
+        // Startup can precede the first update_values() call.
+        soc_hundredths = static_cast<uint16_t>(SOC_BMS * 10u);
+      }
+      const uint16_t soc_half_percent = static_cast<uint16_t>((soc_hundredths + 25u) / 50u);
+      frame.data.u8[7] = static_cast<uint8_t>(soc_half_percent > 200u ? 200u : soc_half_percent);
+      break;
+    }
+
     default:
       break;
   }
