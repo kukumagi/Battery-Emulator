@@ -260,7 +260,8 @@ void KiaEGmpBattery::apply_dc_link_voltage(CAN_frame& frame) {
   uint16_t live_pack_voltage_V = 806;
 
   if (batteryVoltage > 0) {
-    live_pack_voltage_V = static_cast<uint16_t>((batteryVoltage + 5) / 10);
+    // Truncate to whole volts so the transmitted value never rounds up.
+    live_pack_voltage_V = static_cast<uint16_t>(batteryVoltage / 10);
   }
 
   switch (frame.ID) {
@@ -294,6 +295,8 @@ void KiaEGmpBattery::transmit_startup_message(uint8_t message_index) {
   frame.data.u8[0] = static_cast<uint8_t>(checksum);
   frame.data.u8[1] = static_cast<uint8_t>(checksum >> 8);
   transmit_can_frame(&frame);
+  lastTemplateTransmitMillis.store(millis());
+  templateTransmitAttempted.store(true);
 }
 
 bool KiaEGmpBattery::has_transmit_counter(uint16_t can_id) const {
@@ -345,6 +348,8 @@ void KiaEGmpBattery::transmit_message(uint16_t can_id, uint32_t message_count) {
   frame.data.u8[0] = static_cast<uint8_t>(checksum);
   frame.data.u8[1] = static_cast<uint8_t>(checksum >> 8);
   transmit_can_frame(&frame);
+  lastTemplateTransmitMillis.store(millis());
+  templateTransmitAttempted.store(true);
 }
 
 void KiaEGmpBattery::update_values() {
@@ -439,7 +444,7 @@ inline String& operator<<(String& str, const T& value) {
 }
 String KiaEGmpBattery::get_uds_info_html() {
   String content;
-  content.reserve(1600);
+  content.reserve(1900);
 
   const char* contactor_status = "Unknown (no 0x21A data)";
   const bool contactor_status_fresh =
@@ -495,7 +500,93 @@ String KiaEGmpBattery::get_uds_info_html() {
     content << String(contactorStatus21A, HEX) << ")";
   }
   content << "</h4>";
+
+  content << "<h4>EGMP template CAN transmission: ";
+  if (!startedUp) {
+    content << "Not sending - no battery CAN frames received yet";
+  } else {
+    const String block_reason = contactor_close_traffic_block_reason();
+    if (block_reason.length() > 0) {
+      content << "Blocked - " << block_reason;
+    } else if (templateTransmitAttempted.load()) {
+      content << "Enabled; last frame transmit request " << String(millis() - lastTemplateTransmitMillis.load())
+              << " ms ago";
+    } else {
+      content << "Enabled; no template frame transmit request yet";
+    }
+  }
+  content << "</h4>";
   return content;
+}
+
+String KiaEGmpBattery::contactor_close_traffic_block_reason() const {
+  String reason;
+  const auto add_reason = [&reason](const String& item) {
+    if (reason.length() > 0) {
+      reason += "; ";
+    }
+    reason += item;
+  };
+
+  uint16_t actual_min_mV = UINT16_MAX;
+  uint16_t actual_max_mV = 0;
+  uint16_t valid_cell_count = 0;
+  bool cell_voltages_fresh = cellVoltageFrameSeen;
+  const unsigned long now = millis();
+
+  for (int i = 0; i < MAX_AMOUNT_CELLS; ++i) {
+    const uint16_t voltage_mV = datalayer.battery.status.cell_voltages_mV[i];
+    if (cellVoltageReceived[i] && voltage_mV > 0) {
+      ++valid_cell_count;
+      if (now - cellVoltageRxMillis[i] > CELL_VOLTAGE_STALE_MS) {
+        cell_voltages_fresh = false;
+      }
+      if (voltage_mV < actual_min_mV) {
+        actual_min_mV = voltage_mV;
+      }
+      if (voltage_mV > actual_max_mV) {
+        actual_max_mV = voltage_mV;
+      }
+    }
+  }
+
+  if (valid_cell_count != 144 && valid_cell_count != 180 && valid_cell_count != 192) {
+    add_reason("incomplete cell readings (" + String(valid_cell_count) + "; expected 144, 180, or 192)");
+  }
+  if (!cell_voltages_fresh) {
+    add_reason("cell voltage data missing or older than 5 seconds");
+  }
+  if (valid_cell_count > 0 && actual_min_mV <= MIN_CELL_VOLTAGE_MV) {
+    add_reason("cell voltage at or below minimum (" + String(actual_min_mV) + " mV)");
+  }
+  if (valid_cell_count > 0 && actual_max_mV >= MAX_CELL_VOLTAGE_MV) {
+    add_reason("cell voltage at or above maximum (" + String(actual_max_mV) + " mV)");
+  }
+  if (manualContactorOpenRequested.load()) {
+    add_reason("manual contactor-open request is active");
+  }
+  if (!datalayer.system.status.battery_allows_contactor_closing && reason.length() == 0) {
+    add_reason("battery close permission is not asserted");
+  }
+  if (!datalayer.system.status.inverter_allows_contactor_closing) {
+    add_reason("inverter does not allow contactor closing");
+  }
+  if (datalayer.system.status.system_status == FAULT) {
+    add_reason("system is in FAULT state");
+  }
+
+  const bool knownContactorStatus =
+      contactorStatus21A == CONTACTOR_STATUS_OPEN || contactorStatus21A == CONTACTOR_STATUS_PRECHARGE ||
+      contactorStatus21A == CONTACTOR_STATUS_CLOSED;
+  if (!contactorStatus21AValid) {
+    add_reason("no valid contactor status received from 0x21A");
+  } else if (now - contactorStatus21ALastRxMillis > CELL_VOLTAGE_STALE_MS) {
+    add_reason("contactor status from 0x21A is older than 5 seconds");
+  } else if (!knownContactorStatus) {
+    add_reason("unrecognized contactor status from 0x21A");
+  }
+
+  return reason;
 }
 
 bool KiaEGmpBattery::contactor_close_traffic_allowed() const {

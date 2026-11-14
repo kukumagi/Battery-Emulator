@@ -1,6 +1,7 @@
 #include <gtest/gtest.h>
 
 #include <cstddef>
+#include <cstring>
 #include <vector>
 
 #include "../../Software/src/battery/KIA-E-GMP-BATTERY.h"
@@ -150,9 +151,20 @@ TEST_F(KiaEGmpContactorTest, OpenEventIsNotRaisedWhenOpeningIsExpected) {
 
 TEST_F(KiaEGmpContactorTest, UnknownContactorStatusBlocksTemplateTraffic) {
   feed_contactor_status(battery, 0x00);
+  const String info = battery.get_uds_info_html();
+  EXPECT_NE(std::strstr(info.c_str(), "unrecognized contactor status from 0x21A"), nullptr);
+
   clear_transmitted_frames();
   battery.transmit_can(1000);
   EXPECT_FALSE(has_template_frame());
+}
+
+TEST_F(KiaEGmpContactorTest, MoreInfoReportsLastTemplateTransmitRequest) {
+  battery.transmit_can(1000);
+
+  const String info = battery.get_uds_info_html();
+  EXPECT_NE(std::strstr(info.c_str(), "last frame transmit request"), nullptr);
+  EXPECT_EQ(std::strstr(info.c_str(), "Blocked -"), nullptr);
 }
 
 TEST_F(KiaEGmpContactorTest, AutomaticSoftResetIsQueuedOnlyOnceWhileOpen) {
