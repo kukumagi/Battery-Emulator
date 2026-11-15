@@ -54,6 +54,7 @@ class KiaEGmpBattery : public UdsCanBattery {
   void set_cell_voltage_mv(uint16_t voltage_mV, uint8_t cellNumber);
   void handle_0x215_cell_voltages(const CAN_frame& rx_frame);
   bool contactor_close_traffic_allowed() const;
+  String contactor_close_traffic_block_reason() const;
   void update_contactor_events();
 
   static const int MAX_PACK_VOLTAGE_DV = 8064;  //5000 = 500.0V
@@ -64,6 +65,9 @@ class KiaEGmpBattery : public UdsCanBattery {
   static constexpr unsigned long CELL_VOLTAGE_STALE_MS = 5000;
   static constexpr uint8_t CONTACTOR_STATUS_OPEN = 0xFE;
   static constexpr uint8_t CONTACTOR_STATUS_PRECHARGE = 0x03;
+  // Observed while the user-confirmed contactors were closed and discharging.
+  // Treat as an active/closed state and keep the CAN support traffic running.
+  static constexpr uint8_t CONTACTOR_STATUS_ACTIVE = 0x04;
   static constexpr uint8_t CONTACTOR_STATUS_CLOSED = 0x01;
 
   // Used for SoC compensation - Define internal resistance value in milliohms for the entire pack
@@ -99,6 +103,8 @@ class KiaEGmpBattery : public UdsCanBattery {
   unsigned long contactorStatus21ALastRxMillis = 0;
   std::atomic<bool> manualContactorOpenRequested{false};
   std::atomic<bool> automaticResetAttempted{false};
+  std::atomic<bool> templateTransmitAttempted{false};
+  std::atomic<unsigned long> lastTemplateTransmitMillis{0};
   uint8_t waterleakageSensor = 164;
   bool startedUp = false;
   int8_t temperature_water_inlet = 20;
